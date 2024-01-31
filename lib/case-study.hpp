@@ -1,12 +1,18 @@
-// Copyright © 2021 Giorgio Audrito. All Rights Reserved.
+// Copyright © 2024 Giorgio Audrito, Daniele Bortoluzzi, Giordano Scarso. All Rights Reserved.
 
 /**
- * @file exercises.cpp
- * @brief Quick-start aggregate computing exercises.
+ * @file case-study.hpp
+ * @brief Case study evaluate oldnbr operator.
+ * 
  */
 
-// [INTRODUCTION]
-//! Importing the FCPP library.
+#ifndef CASE_STUDY_OLDNBR_H_
+#define CASE_STUDY_OLDNBR_H_
+
+#include <string>
+#include <ctime>
+#include <cmath>
+
 #include "lib/fcpp.hpp"
 
 /**
@@ -38,55 +44,6 @@ namespace tags {
 constexpr size_t communication_range = 100;
 
 // [AGGREGATE PROGRAM]
-
-/**
- * EXERCISES:
- *
- * Expand the MAIN function below to compute the following:
- *
- * 1)    The number of neighbour devices.
- *
- * 2)    The maximum number of neighbour devices ever witnessed by the current device.
- *
- * 3)    The maximum number of neighbour devices ever witnessed by any device in the network.
- *
- * 4)    Move towards the neighbour with the lowest number of neighbours.
- *
- * Every exercise above is designed to help solving the following one.
- *
- * In order to check whether what you computed is correct, you may display the computed
- * quantities as node qualities through tags `node_color`, `node_size` and `node_shape`.
- * You can also save your computed quantities in additional specific node attributes:
- * towards this end, you should both add a tag in namespace tags above, then list it
- * (together with the corresponding data type) in the `tuple_store` option below.
- *
- *
- * BONUS EXERCISES:
- *
- * 5)    Move away from the neighbour with the highest number of neighbours.
- *
- * 6)    Move as if the device was attracted by the neighbour with the lowest number of neighbours,
- *       and repulsed by the neighbour with the highest number of neighbours.
- *
- * 7)    Move as if the device was repulsed by every neighbour, and by the four walls of the
- *       rectangular box between points [0,0] and [500,500].
- *
- * HINTS:
- *
- * -    In the first few exercises, start by reasoning on when/where to use `nbr` (collecting from
- *      neighbours) and `old` (collecting from the past).
- *
- * -    In order to move a device, you need to set a velocity vector through something like
- *      `node.velocity() = make_vec(0,0)`.
- *
- * -    Coordinates are available through `node.position()`. Coordinates can be composed as physical
- *      vectors: `[1,3] + [2,-1] == [3,2]`, `[2,4] * 0.5 == [1,2]`.
- *
- * -    In the last two exercises, you can model attraction/repulsion using the classical inverse square law.
- *      More precisely, if `v` is the vector between two objects, the resulting force is `v / |v|^3` where
- *      `|v| = sqrt(v_x^2 + v_y^2)`. In FCPP, `norm(v)` is available for computing `|v|`.
- */
-
 
 //! @brief Main function.
 MAIN() {
@@ -181,17 +138,4 @@ DECLARE_OPTIONS(list,
 } // namespace fcpp
 
 
-//! @brief The main function.
-int main() {
-    using namespace fcpp;
-
-    //! @brief The network object type (interactive simulator with given options).
-    using net_t = component::interactive_simulator<option::list>::net;
-    //! @brief The initialisation values (simulation name).
-    auto init_v = common::make_tagged_tuple<option::name>("Exercises");
-    //! @brief Construct the network object.
-    net_t network{init_v};
-    //! @brief Run the simulation until exit.
-    network.run();
-    return 0;
-}
+#endif // CASE_STUDY_OLDNBR_H_
