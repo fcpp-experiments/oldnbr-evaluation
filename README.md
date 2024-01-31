@@ -1,6 +1,6 @@
-# FCPP Starting Exercises
+# FCPP oldnbr case study
 
-Quick-start aggregate computing exercises. The exercises themselves are described in the [run/exercises.cpp](https://github.com/fcpp/fcpp-exercises/blob/master/run/exercises.cpp) file. All commands below are assumed to be issued from the cloned git repository folder. For any issues, please contact [Giorgio Audrito](mailto:giorgio.audrito@unito.it).
+Quick-start aggregate computing `oldnbr` case study. All commands below are assumed to be issued from the cloned git repository folder. For any issues, please contact [Giorgio Audrito](mailto:giorgio.audrito@unito.it).
 
 
 ## References
