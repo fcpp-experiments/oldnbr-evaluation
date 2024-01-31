@@ -61,9 +61,6 @@ MAIN() {
         return min_hood(CALL, a);
     });
 
-    // usage of node physics
-    node.velocity() = -node.position()/communication_range;
-
     // usage of node storage
     node.storage(node_size{}) = 10;
     node.storage(node_color{}) = color(GREEN);
@@ -110,6 +107,8 @@ using store_t = tuple_store<
 using aggregator_t = aggregators<
     node_size,                  aggregator::mean<double>
 >;
+//! @brief Connection predicate (supports power and sleep ratio, 50% loss at 70% of communication range)
+using connect_t = connect::radial<70, connect::powered<coordination::communication_range, 1, dim>>;
 
 //! @brief The general simulation options.
 DECLARE_OPTIONS(list,
@@ -117,17 +116,19 @@ DECLARE_OPTIONS(list,
     synchronised<false>, // optimise for asynchronous networks
     program<coordination::main>,   // program to be run (refers to MAIN above)
     exports<coordination::main_t>, // export type list (types used in messages)
-    retain<metric::retain<2,1>>,   // messages are kept for 2 seconds before expiring
+    retain<metric::retain<5,1>>,   // messages are kept for 2 seconds before expiring
     round_schedule<round_s>, // the sequence generator for round events on nodes
     log_schedule<log_s>,     // the sequence generator for log events on the network
     spawn_schedule<spawn_s>, // the sequence generator of node creation events on the network
     store_t,       // the contents of the node storage
     aggregator_t,  // the tags and corresponding aggregators to be logged
     init<
-        x,      rectangle_d // initialise position randomly in a rectangle for new nodes
+        x,                  rectangle_d, // initialise position randomly in a rectangle for new nodes
+        send_power_ratio,   distribution::constant_n<real_t,1,1>,
+        recv_power_ratio,   distribution::constant_n<real_t,1,1>
     >,
     dimension<dim>, // dimensionality of the space
-    connector<connect::fixed<100, 1, dim>>, // connection allowed within a fixed comm range
+    connector<connect_t>,  // the connection predicate
     shape_tag<node_shape>, // the shape of a node is read from this tag in the store
     size_tag<node_size>,   // the size  of a node is read from this tag in the store
     color_tag<node_color>  // the color of a node is read from this tag in the store
