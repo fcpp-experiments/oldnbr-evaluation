@@ -196,8 +196,8 @@ using aggregator_t = aggregators<
     node_size,                  aggregator::mean<double>
 >;
 //! @brief Connection predicate (supports power and sleep ratio, 50% loss at 70% of communication range)
-// using connect_t = connect::radial<70, connect::powered<coordination::communication_range, 1, 2>>;
-using connect_t = connect::fixed<100>;
+using connect_t = connect::radial<70, connect::powered<coordination::communication_range, 1, dim>>;
+//using connect_t = connect::fixed<100>;
 
 //! @brief The general simulation options.
 DECLARE_OPTIONS(list,
