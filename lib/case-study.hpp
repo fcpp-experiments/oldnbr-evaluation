@@ -12,6 +12,12 @@
 #include <string>
 #include <ctime>
 #include <cmath>
+#include <iostream>
+#include <stdexcept>
+#include <stdio.h>
+#include <cstring>
+#include <vector>
+#include <sstream>
 
 #include "lib/fcpp.hpp"
 
@@ -39,12 +45,37 @@ namespace tags {
     struct node_shape {};
     // ... add more as needed, here and in the tuple_store<...> option below
 
-    //! @brief The areaLog value reaching the gateway from the anomaly.
-    struct gateway_log {};
+    //! @brief The reliability of the current node.
+    struct node_reliability {};
+    //! @brief The alert counter of the current node.
+    struct node_alert_counter {};
+    //! @brief The parent of the current node.
+    struct node_parent {};
+    //! @brief The rating of parent of the current node.
+    struct node_rating_parent {};
 }
 
-//! @brief The maximum communication range between nodes.
-constexpr size_t communication_range = 100;
+namespace configurations {
+    #if defined(AP_USE_CASE) && AP_USE_CASE == SMALL
+        //! @brief Number of people in the area.
+        constexpr int node_num = 100;
+        //! @brief The maximum communication range between nodes.
+        constexpr size_t communication_range = 150;
+    #elif defined(AP_USE_CASE) && AP_USE_CASE == BIG
+        //! @brief Number of people in the area.  
+        constexpr int node_num = 10; 
+        //! @brief The maximum communication range between nodes.
+        constexpr size_t communication_range = 450;
+    #else
+        //! @brief Number of people in the area.  
+        constexpr int node_num = 10; 
+        //! @brief The maximum communication range between nodes.
+        constexpr size_t communication_range = 450;
+    #endif
+
+    //! @brief Dimensionality of the space.
+    constexpr size_t dim = 2;
+}
 
 // [AGGREGATE PROGRAM]
 
@@ -62,88 +93,102 @@ FUN field<int> biConnection(ARGS) { CODE
     });
 }
 
-//! @brief Returns the number of hops to the closest device where `source` is true.
-FUN double distanceTo(ARGS, bool source) { CODE
-    return nbr(CALL, INF, [&](field<double> n){
-        return mux(source, 0.0, min_hood(CALL, n, INF)+1.0);
+//! @brief Compute reliability using old and nbr communications with each neighbour.
+FUN field<real_t> oldNbrConnection(ARGS) { CODE
+    return oldnbr(CALL, field<real_t>{0.0}, [&](field<real_t> o, field<real_t> n){
+        // std::cout << "nbr:"             << n   << std::endl;
+        // std::cout << "old:"             << o   << std::endl;
+
+        return make_tuple(
+            n,
+            mux(o == 0, n/2, o) + mod_other(CALL, 1, 0)
+        );
     });
 }
 
-//! @brief Propagates value along ascending dist.
-GEN(T) T broadcast(ARGS, double dist, T value) { CODE
-    tuple<double,T> loc{dist, value};
-    return get<1>(nbr(CALL, loc, [&](field<tuple<double,T>> n){
-        return make_tuple(dist, get<1>(min_hood(CALL, n, loc)));
-    }));
-}
+template <typename node_t, typename P, typename T, typename U, typename G, typename R, typename = common::if_signature<G, T(T,T)>>
+T sp_collection_mod(ARGS, P const& distance, T const& value, U const& null, G&& accumulate, R const& reliability) { CODE
+    return nbr(CALL, (T)null, [&](field<T> x){
+        auto best_neigh_field =  min_hood( CALL, make_tuple(nbr(CALL, distance), -reliability, nbr_uid(CALL)) );
+        R best_neigh_rating_computed = -get<1>(best_neigh_field);
+        device_t best_neigh_computed = get<2>(best_neigh_field);
+        field<tuple<device_t, real_t>> rating_tuple = old(CALL, make_tuple(best_neigh_computed, 1.0), [&](field<tuple<device_t, real_t>> o){
+            device_t old_parent = other(CALL, get<0>(o));
+            real_t old_rating = other(CALL, get<1>(o));
+            real_t old_rating_evolved = other(CALL, mux(get<0>(o) == best_neigh_computed, (get<1>(o)/100)*110, (get<1>(o)/100)*80));
 
-//! @brief Block C - converge-cast.
-GEN(F, G) double C(ARGS, bool sink, double value, F&& accumulate, G&& divide) { CODE
-    double dist = distanceTo(CALL, sink);
-    return get<1>(nbr(CALL, make_tuple(dist,value), [&](field<tuple<double,double>> n){
-        field<int> conn = mux(get<0>(n) < dist, biConnection(CALL), 0);
-        field<double> send = conn / (double)max(sum_hood(CALL, conn, 0), 1);
-        field<double> recv = nbr(CALL, send);
-        return make_tuple(dist, fold_hood(CALL, accumulate, map_hood(divide, get<1>(n), recv), value));
-    }));
-}
+            // std::cout << "old_parent:"                          << old_parent  << std::endl;
+            // std::cout << "old_rating:"                          << old_rating  << std::endl;
+            // std::cout << "old_rating_evolved:"                  << old_rating_evolved  << std::endl;
+            // std::cout << "best_neigh_computed:"                 << best_neigh_computed  << std::endl;
+            // std::cout << "best_neigh_rating_computed:"          << best_neigh_rating_computed  << std::endl;
 
-//! @brief Returns the number of hops between the closests source and dest devices.
-FUN int distance(ARGS, bool source, bool dest) { CODE
-    return broadcast(CALL, distanceTo(CALL, source), distanceTo(CALL, dest));
-}
+            if (best_neigh_computed != old_parent && best_neigh_rating_computed < old_rating_evolved) {
+                // std::cout << "best_neigh_rating_computed < old_rating_evolved"  << std::endl;
+                return make_tuple(
+                    old_parent,
+                    old_rating_evolved
+                );
+            } else {
+                return make_tuple(
+                        best_neigh_computed,
+                        other(CALL, best_neigh_rating_computed)
+                );
+            }
+        });
 
-//! @brief Returns true on the way between the closest source and dest devices, false elsewhere
-FUN bool channel(ARGS, bool source, bool dest, double width) { CODE
-    return distanceTo(CALL, source) + distanceTo(CALL, dest) <= distance(CALL, source, dest) + width;
-}
+        device_t parent = get<0>(other(CALL, rating_tuple));
+        device_t rating_parent = get<1>(other(CALL, rating_tuple));
 
-//! @brief Broadcasts the value in source along the channel between source and dest
-GEN(T) T broadcastChannel(ARGS, bool source, bool dest, double width, T value) { CODE
-    return channel(CALL, source, dest, width) ? broadcast(CALL, distanceTo(CALL, source), value) : value;
+        node.storage(fcpp::coordination::tags::node_parent{}) = parent;
+        node.storage(fcpp::coordination::tags::node_rating_parent{}) = rating_parent;
+        return fold_hood(CALL, accumulate, mux(nbr(CALL, parent) == node.uid, x, (T)null), value);
+    });
 }
-
 
 //! @brief Main function.
 MAIN() {
     // import tag names in the local scope.
     using namespace tags;
-
-    // sample code below (substitute with the solution to the exercises)...
-
-    // usage of aggregate constructs
-    field<double> f = nbr(CALL, 4.2); // nbr with single value
-    int x = old(CALL, 0, [&](int a){  // old with initial value and update function
-        return a+1;
-    });
-    int y = nbr(CALL, 0, [&](field<int> a){ // nbr with initial value and update function
-        return min_hood(CALL, a);
-    });
+    using namespace fcpp::component::tags;
 
     // usage of node storage
     node.storage(node_size{}) = 10;
-    node.storage(node_color{}) = color(GREEN);
+    node.storage(node_color{}) = color(BLACK);
     node.storage(node_shape{}) = shape::sphere;
 
     /*****************/
-    bool gateway = node.uid == 0; // gateway is node 0
-    // anomaly is in node 1 between times 25 and 50
-    bool anomaly = node.uid == 1 and 25 < node.current_time() and node.current_time() < 50;
-    double log = 1; // dummy log value (areaLog counts the area size)
+    bool source = node.uid == 0; // source is node 0
+    if (source) {
+        node.storage(node_color{}) = color(GREEN);
+        fcpp::common::get<sleep_ratio>(node.connector_data()) = 0.0; // the source never ends itself
+        fcpp::common::get<send_power_ratio>(node.connector_data()) = 1.0; // the source has perfect "send" power ratio
+        fcpp::common::get<recv_power_ratio>(node.connector_data()) = 1.0; // the source has perfect "recv" power ratio
+    }
+    std::cout << "node:"       << node.uid     << std::endl;
 
-    double areaLog = distanceTo(CALL, anomaly) < 10 ? C(CALL, anomaly, log, [](double x, double y){
+    auto adder = [](real_t x, real_t y) {
         return x+y;
-    }, [](double x, double y){
-        return x*y;
-    }) : 0;
-    double result = broadcastChannel(CALL, anomaly, gateway, 10, areaLog);
-    node.storage(tags::gateway_log{}) = gateway ? result : 0;
-    if (gateway) {
-        node.storage(node_color{}) = color(RED);
-    }
-    if (anomaly) {
-        node.storage(node_color{}) = color(YELLOW);
-    }
+    };
+
+    real_t distance = coordination::abf_distance(CALL, source);
+
+    #if defined(AP_RELIABILITY_MODE) && AP_RELIABILITY_MODE == UNICONNECTION
+        field<real_t> reliability = uniConnection(CALL); 
+    #elif defined(AP_RELIABILITY_MODE) && AP_RELIABILITY_MODE == BICONNECTION
+        field<real_t> reliability = biConnection(CALL); 
+    #elif defined(AP_RELIABILITY_MODE) && AP_RELIABILITY_MODE == OLDNBRCONNECTION
+        field<real_t> reliability = oldNbrConnection(CALL); 
+    #else
+        field<real_t> reliability = oldNbrConnection(CALL); 
+    #endif
+
+    real_t value = coordination::sp_collection_mod(CALL, distance, 1.0, 0, adder, reliability);
+
+    node.storage(node_alert_counter{})  = value;
+    node.storage(node_reliability{})    = reliability;
+    node.storage(sleep_ratio{})         = fcpp::common::get<sleep_ratio>(node.connector_data());
+    std::cout << std::endl;
 
     /*****************/
 }
@@ -151,9 +196,10 @@ MAIN() {
 FUN_EXPORT main_t = export_list<double, 
                                 int,    
                                 field<int>, 
-                                field<double>, 
-                                tuple<double,double>, 
-                                tuple<field<double>,double>
+                                field<real_t>, 
+                                tuple<device_t, real_t>,
+                                sp_collection_t<real_t, real_t>,
+                                abf_distance_t
                                 >;
 
 } // namespace coordination
@@ -167,11 +213,8 @@ namespace option {
 using namespace component::tags;
 //! @brief Import tags used by aggregate functions.
 using namespace coordination::tags;
-
-//! @brief Number of people in the area.
-constexpr int node_num = 100;
-//! @brief Dimensionality of the space.
-constexpr size_t dim = 2;
+//! @brief Import tags used by configurations.
+using namespace coordination::configurations;
 
 //! @brief Description of the round schedule.
 using round_s = sequence::periodic<
@@ -189,19 +232,23 @@ using store_t = tuple_store<
     node_color,                 color,
     node_size,                  double,
     node_shape,                 shape,
-    gateway_log,                double
+    node_alert_counter,         real_t,
+    node_reliability,           field<real_t>,
+    sleep_ratio,                real_t,
+    node_parent,                device_t,
+    node_rating_parent,         real_t
 >;
 //! @brief The tags and corresponding aggregators to be logged (change as needed).
 using aggregator_t = aggregators<
     node_size,                  aggregator::mean<double>
 >;
 //! @brief Connection predicate (supports power and sleep ratio, 50% loss at 70% of communication range)
-using connect_t = connect::radial<70, connect::powered<coordination::communication_range, 1, dim>>;
+using connect_t = connect::radial<70, connect::powered<coordination::configurations::communication_range, 1, dim>>;
 //using connect_t = connect::fixed<100>;
 
 //! @brief The general simulation options.
 DECLARE_OPTIONS(list,
-    parallel<true>,      // multithreading enabled on node rounds
+    parallel<false>,      // multithreading enabled on node rounds
     synchronised<false>, // optimise for asynchronous networks
     program<coordination::main>,   // program to be run (refers to MAIN above)
     exports<coordination::main_t>, // export type list (types used in messages)
@@ -213,8 +260,9 @@ DECLARE_OPTIONS(list,
     aggregator_t,  // the tags and corresponding aggregators to be logged
     init<
         x,                  rectangle_d, // initialise position randomly in a rectangle for new nodes
-        send_power_ratio,   distribution::constant_n<real_t,1,1>,
-        recv_power_ratio,   distribution::constant_n<real_t,1,1>
+        send_power_ratio,   distribution::interval_n<times_t, 4, 5, 5>, // greater is better
+        recv_power_ratio,   distribution::interval_n<times_t, 5, 5, 5>, // greater is better
+        sleep_ratio,        distribution::interval_n<times_t, 0, 1, 5> // less is better
     >,
     dimension<dim>, // dimensionality of the space
     connector<connect_t>,  // the connection predicate

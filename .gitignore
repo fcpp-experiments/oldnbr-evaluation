@@ -8,3 +8,4 @@ plot/
 .vagrant/
 .DS_Store
 .idea/
+.vscode/

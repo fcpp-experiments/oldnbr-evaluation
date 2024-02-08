@@ -1,7 +1,12 @@
-# FCPP oldnbr case study
+# FCPP oldnbr evaluation case study
 
-Quick-start aggregate computing `oldnbr` case study. All commands below are assumed to be issued from the cloned git repository folder. For any issues, please contact [Giorgio Audrito](mailto:giorgio.audrito@unito.it).
+Quick-start aggregate computing `oldnbr-evaluation` case study. All commands below are assumed to be issued from the cloned git repository folder. For any issues, please contact [Giorgio Audrito](mailto:giorgio.audrito@unito.it).
 
+## Build configuration
+There are two usecases: SMALL (default), BIG. To choose, you can use the `AP_USE_CASE` define, like this:
+./make.sh gui  build -DAP_USE_CASE=BIG runner 
+You can also choose the reliability function used to weight the neighbours. The options are: OLDNBRCONNECTION (default), UNICONNECTION, BICONNECTION.  To choose, you can use the `AP_RELIABILITY_MODE` define, like this:
+./make.sh gui  build -AP_RELIABILITY_MODE=BICONNECTION runner 
 
 ## References
 
@@ -70,12 +75,12 @@ If you use a VM with a graphical interface, refer to the section for the operati
 
 ## Execution
 
-In order to execute the exercises file, type the following command in a terminal:
+In order to execute the runner file, type the following command in a terminal:
 ```
-> ./make.sh gui run -O exercises
+> ./make.sh gui run -O runner
 ```
 On newer Mac M1 computers, the `-O` argument may induce compilation errors: in that case, use the `-O3` argument instead.
-Running the above command, you should see output about building the executables then the graphical simulation should pop up while the console will show the most recent `stdout` and `stderr` outputs of the application, together with resource usage statistics (both on RAM and CPU).  During the execution, log files will be generated in the `output/` repository sub-folder. If a batch of multiple simulations is launched (which is not the case for the `exercises` target), individual simulation results will be logged in the `output/raw/` subdirectory, with the overall resume in the `output/` directory.
+Running the above command, you should see output about building the executables then the graphical simulation should pop up while the console will show the most recent `stdout` and `stderr` outputs of the application, together with resource usage statistics (both on RAM and CPU).  During the execution, log files will be generated in the `output/` repository sub-folder. If a batch of multiple simulations is launched (which is not the case for the `runner` target), individual simulation results will be logged in the `output/raw/` subdirectory, with the overall resume in the `output/` directory.
 
 ### Graphical User Interface
 
@@ -102,13 +107,13 @@ Hovering on a node will also display its UID in the top-left corner.
 
 This project consists of four files (besides git configuration files):
 
-- [run/exercises.cpp](https://github.com/fcpp/fcpp-exercises/blob/master/run/exercises.cpp). This contains the actual C++ code (using the FCPP library) that will be run. In-line documentation is provided to show the purpose of its various parts. This file consists of three sections with different purposes:
+- [run/runner.cpp](https://github.com/fcpp/fcpp-runner/blob/master/run/runner.cpp). This contains the actual C++ code (using the FCPP library) that will be run. In-line documentation is provided to show the purpose of its various parts. This file consists of three sections with different purposes:
     - First, the **introduction** section imports the FCPP library and declares a series of _tags_ (empty types) and _constexpr_ constants to be later used both in the _aggregate program_ and _system setup_.
     - Then, the **aggregate program** section specifies the behaviour to be executed on the distributed system, through a _field calculus_-like dialect of C++.
     - Finally, the **system setup** section specifies the execution settings under which the program is to be run, encoding them into empty types that are passed as options to the main FCPP classes.
 
   More details on these last two sections are given below.
-- [CMakeLists.txt](https://github.com/fcpp/fcpp-exercises/blob/master/CMakeLists.txt). This contains the CMake configuration for the project. The first four commands (line 1-8) ensure that the FCPP library is properly loaded. After defining the project, the execution targets can be declared through:
+- [CMakeLists.txt](https://github.com/fcpp/fcpp-runner/blob/master/CMakeLists.txt). This contains the CMake configuration for the project. The first four commands (line 1-8) ensure that the FCPP library is properly loaded. After defining the project, the execution targets can be declared through:
   ```
   fcpp_target(executable_path has_gui)
   ```
@@ -116,11 +121,11 @@ This project consists of four files (besides git configuration files):
   ```
   fcpp_test(executable_path)
   ```
-- [make.sh](https://github.com/fcpp/fcpp-exercises/blob/master/make.sh). This script provides a friendly interface to the build and execution tools. Launching `./make.sh` without arguments shows the relevant help. The most common usages are:
+- [make.sh](https://github.com/fcpp/fcpp-runner/blob/master/make.sh). This script provides a friendly interface to the build and execution tools. Launching `./make.sh` without arguments shows the relevant help. The most common usages are:
     - `./make.sh doc`: build the doxygen documentation (needs a `Doxyfile` such as the one available in [fcpp/src/Doxyfile](https://github.com/fcpp/fcpp/blob/master/src/Doxyfile) to be present in the main repository folder)
     - `./make.sh gui run -O all`: perform an optimised build and run of every target (with GUI enabled)
     - `./make.sh test all`: perform all automated tests
-- [README.md](https://github.com/fcpp/fcpp-exercises/blob/master/README.md), which is this file.
+- [README.md](https://github.com/fcpp/fcpp-runner/blob/master/README.md), which is this file.
 
 
 ## Aggregate Program
