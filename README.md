@@ -6,7 +6,14 @@ Quick-start aggregate computing `oldnbr-evaluation` case study. All commands bel
 There are two usecases: SMALL (default), BIG. To choose, you can use the `AP_USE_CASE` define, like this:
 ./make.sh gui  build -DAP_USE_CASE=BIG runner 
 You can also choose the reliability function used to weight the neighbours. The options are: OLDNBRCONNECTION (default), UNICONNECTION, BICONNECTION.  To choose, you can use the `AP_RELIABILITY_MODE` define, like this:
-./make.sh gui  build -AP_RELIABILITY_MODE=BICONNECTION runner 
+./make.sh gui build -AP_RELIABILITY_MODE=BICONNECTION runner 
+
+# Plot
+Use command:
+```bash
+./make.sh gui run -DAP_USE_CASE=BIG -DAP_RELIABILITY_MODE=OLDNBRCONNECTION runner
+```
+for example to use OLDNBRCONNECTION function and BIG use case
 
 ## References
 

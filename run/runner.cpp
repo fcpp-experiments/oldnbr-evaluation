@@ -17,13 +17,24 @@ using namespace fcpp;
 //! @brief The main function.
 int main() {
 
-    //! @brief The network object type (interactive simulator with given options).
-    using net_t = component::interactive_simulator<option::list>::net;
-    //! @brief The initialisation values (simulation name).
-    auto init_v = common::make_tagged_tuple<option::name>("Oldnbr Evaluation");
-    //! @brief Construct the network object.
-    net_t network{init_v};
-    //! @brief Run the simulation until exit.
-    network.run();
+    fcpp::option::plot_t p;
+    std::cout << "/*\n";
+
+    {
+        //! @brief The network object type (interactive simulator with given options).
+        using net_t = component::interactive_simulator<option::list>::net;
+        //! @brief The initialisation values (simulation name).
+        auto init_v = common::make_tagged_tuple<option::name, option::plotter>(
+            "Oldnbr Evaluation",
+            &p
+        );
+        //! @brief Construct the network object.
+        net_t network{init_v};
+        //! @brief Run the simulation until exit.
+        network.run();
+    }
+
+    std::cout << "*/\n";
+    std::cout << plot::file("runner", p.build());
     return 0;
 }
