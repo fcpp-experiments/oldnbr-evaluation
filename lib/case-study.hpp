@@ -63,12 +63,12 @@ namespace tags {
 }
 
 namespace configurations {
-    #if defined(AP_USE_CASE) && AP_USE_CASE == SMALL
+    #if defined(AP_USE_CASE) && AP_USE_CASE == BIG
         //! @brief Number of people in the area.
         constexpr int node_num = 100;
         //! @brief The maximum communication range between nodes.
         constexpr size_t communication_range = 150;
-    #elif defined(AP_USE_CASE) && AP_USE_CASE == BIG
+    #elif defined(AP_USE_CASE) && AP_USE_CASE == SMALL
         //! @brief Number of people in the area.  
         constexpr int node_num = 10; 
         //! @brief The maximum communication range between nodes.
