@@ -9,6 +9,9 @@
 #ifndef CASE_STUDY_OLDNBR_H_
 #define CASE_STUDY_OLDNBR_H_
 
+#define BIG     0
+#define SMALL   1
+
 #include <string>
 #include <ctime>
 #include <cmath>
@@ -44,13 +47,18 @@ namespace tags {
     //! @brief Shape of the current node.
     struct node_shape {};
     //! @brief Average of received alerts by current node.
+    template <typename>
     struct avg_alert_per_node{};
-    //! @brief Sum of the alert received by source nodes.
-    struct sum_source_alert_counter{};
+
+    //! @brief Classic version of sp_collection algorithm
+    struct classic {};
+    //! @brief Oldnbr version of sp_collection algorithm
+    struct oldnbr {};
 
     //! @brief The reliability of the current node.
     struct node_reliability {};
     //! @brief The alert counter of the current node.
+    template <typename>
     struct node_alert_counter {};
     //! @brief The parent of the current node.
     struct node_parent {};
@@ -59,16 +67,17 @@ namespace tags {
     //! @brief A source of the network.
     struct node_source {};
     //! @brief The rating of the source.
+    template <typename>
     struct source_alert_counter {};
 }
 
 namespace configurations {
-    #if defined(AP_USE_CASE) && AP_USE_CASE == BIG
+    #if defined(AP_USE_CASE) && (AP_USE_CASE == AP_USE_CASE_BIG)
         //! @brief Number of people in the area.
         constexpr int node_num = 100;
         //! @brief The maximum communication range between nodes.
         constexpr size_t communication_range = 150;
-    #elif defined(AP_USE_CASE) && AP_USE_CASE == SMALL
+    #elif defined(AP_USE_CASE) && (AP_USE_CASE == AP_USE_CASE_SMALL)
         //! @brief Number of people in the area.  
         constexpr int node_num = 10; 
         //! @brief The maximum communication range between nodes.
@@ -106,9 +115,6 @@ FUN field<int> biConnection(ARGS) { CODE
 //! @brief Compute reliability using old and nbr communications with each neighbour.
 FUN field<real_t> oldNbrConnection(ARGS) { CODE
     return oldnbr(CALL, field<real_t>{0.0}, [&](field<real_t> o, field<real_t> n){
-        // std::cout << "nbr:"             << n   << std::endl;
-        // std::cout << "old:"             << o   << std::endl;
-
         return make_tuple(
             n,
             mux(o == 0, n/2, o) + mod_other(CALL, 1, 0)
@@ -117,15 +123,16 @@ FUN field<real_t> oldNbrConnection(ARGS) { CODE
 }
 
 template <typename node_t, typename P, typename T, typename U, typename G, typename R, typename = common::if_signature<G, T(T,T)>>
-T sp_collection_mod(ARGS, P const& distance, T const& value, U const& null, G&& accumulate, R const& reliability) { CODE
+T sp_collection_mod(ARGS, P const& distance, T const& value, U const& null, G&& accumulate, field<R> const& reliability) { CODE
     return nbr(CALL, (T)null, [&](field<T> x){
         auto best_neigh_field =  min_hood( CALL, make_tuple(nbr(CALL, distance), -reliability, nbr_uid(CALL)) );
         R best_neigh_rating_computed = -get<1>(best_neigh_field);
         device_t best_neigh_computed = get<2>(best_neigh_field);
-        field<tuple<device_t, real_t>> rating_tuple = old(CALL, make_tuple(best_neigh_computed, 1.0), [&](field<tuple<device_t, real_t>> o){
-            device_t old_parent = other(CALL, get<0>(o));
-            real_t old_rating = other(CALL, get<1>(o));
-            real_t old_rating_evolved = other(CALL, mux(get<0>(o) == best_neigh_computed, (get<1>(o)/100)*110, (get<1>(o)/100)*80));
+        tuple<device_t, real_t> rating_tuple = old(CALL, make_tuple(best_neigh_computed, best_neigh_rating_computed), [&](tuple<device_t, real_t> o){
+            device_t old_parent = get<0>(o);
+            real_t old_rating = get<1>(o);
+
+            real_t old_rating_evolved = old_rating*0.8;
 
             // std::cout << "old_parent:"                          << old_parent  << std::endl;
             // std::cout << "old_rating:"                          << old_rating  << std::endl;
@@ -134,7 +141,6 @@ T sp_collection_mod(ARGS, P const& distance, T const& value, U const& null, G&& 
             // std::cout << "best_neigh_rating_computed:"          << best_neigh_rating_computed  << std::endl;
 
             if (best_neigh_computed != old_parent && best_neigh_rating_computed < old_rating_evolved) {
-                // std::cout << "best_neigh_rating_computed < old_rating_evolved"  << std::endl;
                 return make_tuple(
                     old_parent,
                     old_rating_evolved
@@ -142,7 +148,7 @@ T sp_collection_mod(ARGS, P const& distance, T const& value, U const& null, G&& 
             } else {
                 return make_tuple(
                         best_neigh_computed,
-                        other(CALL, best_neigh_rating_computed)
+                        best_neigh_rating_computed
                 );
             }
         });
@@ -152,6 +158,7 @@ T sp_collection_mod(ARGS, P const& distance, T const& value, U const& null, G&& 
 
         node.storage(fcpp::coordination::tags::node_parent{}) = parent;
         node.storage(fcpp::coordination::tags::node_rating_parent{}) = rating_parent;
+        // non serve nbr di parent perchè è già come argomento
         return fold_hood(CALL, accumulate, mux(nbr(CALL, parent) == node.uid, x, (T)null), value);
     });
 }
@@ -176,33 +183,23 @@ MAIN() {
         fcpp::common::get<send_power_ratio>(node.connector_data()) = 1.0; // the source has perfect "send" power ratio
         fcpp::common::get<recv_power_ratio>(node.connector_data()) = 1.0; // the source has perfect "recv" power ratio
     }
-    std::cout << "node:"       << node.uid     << std::endl;
 
     auto adder = [](real_t x, real_t y) {
         return x+y;
     };
 
     real_t distance = coordination::abf_distance(CALL, source);
-
-    #if defined(AP_RELIABILITY_MODE) && AP_RELIABILITY_MODE == UNICONNECTION
-        field<real_t> reliability = uniConnection(CALL); 
-    #elif defined(AP_RELIABILITY_MODE) && AP_RELIABILITY_MODE == BICONNECTION
-        field<real_t> reliability = biConnection(CALL); 
-    #elif defined(AP_RELIABILITY_MODE) && AP_RELIABILITY_MODE == OLDNBRCONNECTION
-        field<real_t> reliability = oldNbrConnection(CALL); 
-    #else
-        field<real_t> reliability = oldNbrConnection(CALL); 
-    #endif
+    field<real_t> reliability = oldNbrConnection(CALL); 
 
     real_t value = coordination::sp_collection_mod(CALL, distance, 1.0, 0, adder, reliability);
 
-    node.storage(node_alert_counter{})  = value;
-    node.storage(node_reliability{})    = reliability;
-    node.storage(sleep_ratio{})         = fcpp::common::get<sleep_ratio>(node.connector_data());
+    node.storage(node_alert_counter<tags::oldnbr>{})    = value;
+    node.storage(node_reliability{})                    = reliability;
+    node.storage(sleep_ratio{})                         = fcpp::common::get<sleep_ratio>(node.connector_data());
 
     // update counter of the source
     if (node.storage(fcpp::coordination::tags::node_source{})) {
-        node.storage(fcpp::coordination::tags::source_alert_counter{}) = value;
+        node.storage(fcpp::coordination::tags::source_alert_counter<tags::oldnbr>{}) = value;
     }
 
     std::cout << std::endl;
@@ -254,32 +251,38 @@ using n = distribution::constant_n<double, num, den>;
 
 //! @brief The contents of the node storage as tags and associated types.
 using store_t = tuple_store<
-    node_color,                 color,
-    node_size,                  double,
-    node_shape,                 shape,
+    node_color,                     color,
+    node_size,                      double,
+    node_shape,                     shape,
 
-    node_alert_counter,         real_t,
-    node_reliability,           field<real_t>,
-    node_parent,                device_t,
-    node_rating_parent,         real_t,
-    node_source,                bool,
+    node_alert_counter<classic>,    real_t,
+    node_alert_counter<oldnbr>,     real_t,
+    node_reliability,               field<real_t>,
+    node_parent,                    device_t,
+    node_rating_parent,             real_t,
+    node_source,                    bool,
 
-    source_alert_counter,       real_t,
-    sleep_ratio,                real_t
+    source_alert_counter<classic>,  real_t,
+    source_alert_counter<oldnbr>,   real_t,
+    
+    sleep_ratio,                    real_t
 >;
 //! @brief The tags and corresponding aggregators to be logged (change as needed).
 using aggregator_t = aggregators<
-    node_size,                  aggregator::mean<double>,
-    node_alert_counter,         aggregator::sum<real_t>,
-    source_alert_counter,       aggregator::sum<real_t>
+    node_size,                          aggregator::mean<double>,
+    node_alert_counter<classic>,        aggregator::sum<real_t>,
+    node_alert_counter<oldnbr>,         aggregator::sum<real_t>,
+    source_alert_counter<classic>,      aggregator::sum<real_t>,
+    source_alert_counter<oldnbr>,       aggregator::sum<real_t>
 >;
 
-template <typename... Ts>
-using lines_t = plot::join<plot::values<aggregator_t, common::type_sequence<>, Ts>...>;
-template <typename... Ts>
-using rows_t = plot::join<plot::value<Ts>...>;
-using avg_alert_per_node_t = plot::split<plot::time, rows_t<avg_alert_per_node>>;
-using sum_source_alert_counter_t = plot::split<plot::time, rows_t<sum_source_alert_counter>>;
+template <typename T> using sum_source_alert_counter = aggregator::sum<source_alert_counter<T>>;
+
+template <template<class> typename T, typename... Ts>
+using lines_t = plot::join<plot::value<T<Ts>>...>;
+
+using avg_alert_per_node_t = plot::split<plot::time, lines_t<avg_alert_per_node, classic, oldnbr>>;
+using sum_source_alert_counter_t = plot::split<plot::time, lines_t<sum_source_alert_counter, classic, oldnbr>>;
 using plot_t = plot::join<sum_source_alert_counter_t, avg_alert_per_node_t>;
 
 //! @brief Connection predicate (supports power and sleep ratio, 50% loss at 70% of communication range)
@@ -299,8 +302,8 @@ DECLARE_OPTIONS(list,
     store_t,       // the contents of the node storage
     aggregator_t,  // the tags and corresponding aggregators to be logged
     log_functors<
-        avg_alert_per_node,           functor::div<aggregator::sum<node_alert_counter>, distribution::constant<n<coordination::configurations::node_num>>>,
-        sum_source_alert_counter,     functor::get<aggregator::sum<source_alert_counter>>
+        avg_alert_per_node<classic>,    functor::div<aggregator::sum<node_alert_counter<classic>>, n<coordination::configurations::node_num>>,
+        avg_alert_per_node<oldnbr>,     functor::div<aggregator::sum<node_alert_counter<oldnbr>>, n<coordination::configurations::node_num>>
     >,
     init<
         x,                  rectangle_d, // initialise position randomly in a rectangle for new nodes
