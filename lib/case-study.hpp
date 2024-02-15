@@ -12,10 +12,6 @@
 #define BIG     0
 #define SMALL   1
 
-#define UNICONNECTION               0
-#define BICONNECTION                1
-#define OLDNBRCONNECTION            2
-
 #define LOW_BATTERY                 0
 #define MEDIUM_BATTERY              1
 #define HIGH_BATTERY                2

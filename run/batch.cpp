@@ -22,7 +22,7 @@ int main() {
     using comp_t = component::batch_simulator<option::list>;
     //! @brief The list of initialisation values to be used for simulations.
     auto init_list = batch::make_tagged_tuple_sequence(
-        batch::arithmetic<option::seed>(0, 99, 1),      // 100 different random seeds
+        batch::arithmetic<option::seed>(0, 499, 1),      // 100 different random seeds
         // generate output file name for the run
         batch::stringify<option::output>("output/batch", "txt"),
         batch::constant<option::plotter>(&p) // reference to the plotter object
