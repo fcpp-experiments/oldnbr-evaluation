@@ -12,6 +12,10 @@
 #define BIG     0
 #define SMALL   1
 
+#define UNICONNECTION       0
+#define BICONNECTION        1
+#define OLDNBRCONNECTION    2
+
 #include <string>
 #include <ctime>
 #include <cmath>
@@ -54,7 +58,7 @@ namespace tags {
     struct classic {};
     //! @brief Oldnbr version of sp_collection algorithm
     struct oldnbr {};
-    
+
     //! @brief The rating of the current node.
     struct node_rating {};
     //! @brief The alert counter of the current node.
@@ -186,19 +190,36 @@ MAIN() {
     };
 
     real_t distance = coordination::abf_distance(CALL, source);
-    field<real_t> rating = oldNbrConnection(CALL); 
+
+    field<real_t> oldNbrConnRating  = oldNbrConnection(CALL); 
+    field<int> uniConnRating        = oldNbrConnection(CALL);
+    field<int> biConnRating         = biConnection(CALL); 
+
+    // rating chosen to use with sp_collection_mod to compare with sp_collection (classic)
+    #if defined(AP_RATING_MODE) && AP_RATING_MODE == UNICONNECTION
+        field<real_t> rating = uniConnection(CALL); 
+    #elif defined(AP_RATING_MODE) && AP_RATING_MODE == BICONNECTION
+        field<real_t> rating = biConnection(CALL); 
+    #elif defined(AP_RATING_MODE) && AP_RATING_MODE == OLDNBRCONNECTION
+        field<real_t> rating = oldNbrConnection(CALL); 
+    #else
+        field<real_t> rating = oldNbrConnection(CALL); 
+    #endif
 
     // std::cout << node.uid << std::endl;
 
-    real_t value = coordination::sp_collection_mod(CALL, distance, 1.0, 0, adder, rating);
+    real_t value_sp_mod     = coordination::sp_collection_mod(CALL, distance, 1.0, 0, adder, rating);
+    real_t value_sp_classic = coordination::sp_collection(CALL, distance, 1.0, 0, adder);
 
-    node.storage(node_alert_counter<tags::oldnbr>{})    = value;
+    node.storage(node_alert_counter<tags::classic>{})   = value_sp_classic;
+    node.storage(node_alert_counter<tags::oldnbr>{})    = value_sp_mod;
     node.storage(node_rating{})                         = rating;
     node.storage(sleep_ratio{})                         = fcpp::common::get<sleep_ratio>(node.connector_data());
 
     // update counter of the source
     if (node.storage(fcpp::coordination::tags::node_source{})) {
-        node.storage(fcpp::coordination::tags::source_alert_counter<tags::oldnbr>{}) = value;
+        node.storage(fcpp::coordination::tags::source_alert_counter<tags::classic>{})   = value_sp_classic;
+        node.storage(fcpp::coordination::tags::source_alert_counter<tags::oldnbr>{})    = value_sp_mod;
     }
 
     std::cout << std::endl;
@@ -291,7 +312,6 @@ using plot_t = plot::join<sum_source_alert_counter_t, avg_alert_per_node_t>;
 
 //! @brief Connection predicate (supports power and sleep ratio, 50% loss at 70% of communication range)
 using connect_t = connect::radial<70, connect::powered<coordination::configurations::communication_range, 1, dim>>;
-//using connect_t = connect::fixed<100>;
 
 //! @brief The general simulation options.
 DECLARE_OPTIONS(list,
