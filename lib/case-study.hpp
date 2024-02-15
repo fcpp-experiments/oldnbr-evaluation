@@ -16,8 +16,8 @@
 #define MEDIUM_BATTERY              1
 #define HIGH_BATTERY                2
 
-#define INCREASE_BATTERY_PROB       0.1
-#define DECREASE_BATTERY_PROB       0.05
+#define INCREASE_BATTERY_PROB       0.05
+#define DECREASE_BATTERY_PROB       0.01
 
 #include <string>
 #include <ctime>
@@ -111,16 +111,16 @@ namespace configurations {
 // [AGGREGATE PROGRAM]
 
 //! @brief Counts the number of messages received by each neighbour.
-FUN field<int> uniConnection(ARGS) { CODE
-    return old(CALL, field<int>{0}, [&](field<int> o){
-        return o + mod_other(CALL, 1, 0);
+FUN field<real_t> uniConnection(ARGS) { CODE
+    return old(CALL, field<real_t>{0.0}, [&](field<real_t> o){
+        return o + mod_other(CALL, 1.0, 0.0);
     });
 }
 
 //! @brief Counts the number of bidirectional communications with each neighbour.
-FUN field<int> biConnection(ARGS) { CODE
-    return nbr(CALL, field<int>{0}, [&](field<real_t> n){
-        return n + mod_other(CALL, 1, 0);
+FUN field<real_t> biConnection(ARGS) { CODE
+    return nbr(CALL, field<real_t>{0.0}, [&](field<real_t> n){
+        return n + mod_other(CALL, 1.0, 0.0);
     });
 }
 
@@ -146,7 +146,7 @@ T sp_collection_mod(ARGS, P const& distance, T const& value, U const& null, G&& 
         device_t parent = get<2>(self(CALL, x));
         T folded_value  = fold_hood(CALL, accumulate, mux(get<2>(x) == node.uid, get<0>(x), (T)null), value);
 
-        R rating_evolved = rating*0.8;
+        R rating_evolved = rating*0.7;
 
         if (best_neigh_computed != parent && best_neigh_rating_computed < rating_evolved) {
             return make_tuple(
@@ -253,7 +253,7 @@ MAIN() {
                 new_color = color(ORANGE);
                 break;
             case LOW_BATTERY:
-                sleep_ratio_v = 0.25;
+                sleep_ratio_v = 0.10;
                 send_power_ratio_v = 0.25;
                 recv_power_ratio_v = 0.75;
                 new_color = color(RED);
@@ -273,9 +273,9 @@ MAIN() {
 
     real_t distance = coordination::abf_distance(CALL, source);
 
-    field<int> uniConnRating        = uniConnection(CALL);
-    field<int> biConnRating         = biConnection(CALL); 
-    field<real_t> oldNbrConnRating  = oldNbrConnection(CALL); 
+    field<real_t> uniConnRating         = uniConnection(CALL);
+    field<real_t> biConnRating          = biConnection(CALL); 
+    field<real_t> oldNbrConnRating      = oldNbrConnection(CALL); 
 
     // std::cout << node.uid << std::endl;
 
