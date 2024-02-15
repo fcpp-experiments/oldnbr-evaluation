@@ -3,21 +3,19 @@
 Quick-start aggregate computing `oldnbr-evaluation` case study. All commands below are assumed to be issued from the cloned git repository folder. For any issues, please contact [Giorgio Audrito](mailto:giorgio.audrito@unito.it).
 
 ## Build configuration
-There are two usecases: SMALL (default), BIG. To choose, you can use the `AP_USE_CASE` define, like this:
-./make.sh gui  build -DAP_USE_CASE=BIG runner 
-You can also choose the RATING function used to weight the neighbours. The options are: OLDNBRCONNECTION (default), UNICONNECTION, BICONNECTION.  To choose, you can use the `AP_RATING_MODE` define, like this:
-./make.sh gui build -AP_RATING_MODE=BICONNECTION runner 
+There are two usecases: SMALL, BIG (default). To choose, use `AP_USE_CASE` option, like this:
+./make.sh gui build -DAP_USE_CASE=BIG runner 
 
 # Plot
-Use command to draw a single graph:
+Use command to draw a single simulation into a graph:
 ```bash
-./make.sh gui run -DAP_USE_CASE=BIG -DAP_RATING_MODE=OLDNBRCONNECTION runner
+./make.sh gui run -DAP_USE_CASE=BIG runner
 ```
-for example to use OLDNBRCONNECTION function and BIG use case
+for example to use "BIG" use case
 
-or use batch mode to draw a mean of 100 simulations:
+or use batch mode to draw an average of 100 simulations:
 ```bash
-./make.sh gui run -DAP_USE_CASE=BIG -DAP_RATING_MODE=OLDNBRCONNECTION batch
+./make.sh gui run -DAP_USE_CASE=BIG batch
 ```
 
 ## References
