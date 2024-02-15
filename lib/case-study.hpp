@@ -12,9 +12,16 @@
 #define BIG     0
 #define SMALL   1
 
-#define UNICONNECTION       0
-#define BICONNECTION        1
-#define OLDNBRCONNECTION    2
+#define UNICONNECTION               0
+#define BICONNECTION                1
+#define OLDNBRCONNECTION            2
+
+#define LOW_BATTERY                 0
+#define MEDIUM_BATTERY              1
+#define HIGH_BATTERY                2
+
+#define INCREASE_BATTERY_PROB       0.1
+#define DECREASE_BATTERY_PROB       0.05
 
 #include <string>
 #include <ctime>
@@ -50,15 +57,6 @@ namespace tags {
     struct node_size {};
     //! @brief Shape of the current node.
     struct node_shape {};
-    //! @brief Average of received alerts by current node.
-    template <typename>
-    struct avg_alert_per_node{};
-
-    //! @brief Classic version of sp_collection algorithm
-    struct classic {};
-    //! @brief Oldnbr version of sp_collection algorithm
-    struct oldnbr {};
-
     //! @brief The rating of the current node.
     struct node_rating {};
     //! @brief The alert counter of the current node.
@@ -70,9 +68,19 @@ namespace tags {
     struct node_rating_parent {};
     //! @brief A source of the network.
     struct node_source {};
+    //! @brief The battery level of the current node.
+    struct node_battery_level {};
+
     //! @brief The rating of the source.
     template <typename>
     struct source_alert_counter {};
+    //! @brief Average of received alerts by current node.
+    template <typename>
+    struct avg_alert_per_node{};
+    //! @brief Classic version of sp_collection algorithm.
+    struct classic {};
+    //! @brief Oldnbr version of sp_collection algorithm.
+    struct oldnbr {};
 }
 
 namespace configurations {
@@ -178,12 +186,86 @@ MAIN() {
     /*****************/
     bool source = node.uid == 0; // source is node 0
     node.storage(node_source{}) = source;
-    if (source) {
-        node.storage(node_color{}) = color(GREEN);
-        fcpp::common::get<sleep_ratio>(node.connector_data()) = 0.0; // the source never ends itself
-        fcpp::common::get<send_power_ratio>(node.connector_data()) = 1.0; // the source has perfect "send" power ratio
-        fcpp::common::get<recv_power_ratio>(node.connector_data()) = 1.0; // the source has perfect "recv" power ratio
+
+    // probability to increase battery
+    real_t rnd_increase = node.next_real(1);
+    if (rnd_increase <= INCREASE_BATTERY_PROB) {
+        int new_battery_level;
+        switch(node.storage(node_battery_level{}))
+        {
+            case MEDIUM_BATTERY:
+                new_battery_level = HIGH_BATTERY;
+                break;
+            case LOW_BATTERY:
+                new_battery_level = MEDIUM_BATTERY;
+                break;
+            default:
+                new_battery_level = node.storage(node_battery_level{});
+                break;
+        }
+        node.storage(node_battery_level{}) = new_battery_level;
+    } else {
+        // probability to decrease battery
+        real_t rnd_decrease = node.next_real(1);
+        if (rnd_decrease <= DECREASE_BATTERY_PROB) {
+            int new_battery_level;
+            switch(node.storage(node_battery_level{}))
+            {
+                case HIGH_BATTERY:
+                    new_battery_level = MEDIUM_BATTERY;
+                    break;
+                case MEDIUM_BATTERY:
+                    new_battery_level = LOW_BATTERY;
+                    break;
+                default:
+                    new_battery_level = node.storage(node_battery_level{});
+                    break;
+            }
+            node.storage(node_battery_level{}) = new_battery_level;
+        }
     }
+
+    real_t sleep_ratio_v; // less is better
+    real_t send_power_ratio_v; // greater is better
+    real_t recv_power_ratio_v; // greater is better
+    fcpp:color new_color;
+
+    if (source) {
+        new_color = color(BLACK);
+        node.storage(node_battery_level{}) = HIGH_BATTERY;
+
+        sleep_ratio_v = 0.0; // the source never ends itself
+        send_power_ratio_v = 1.0; // the source has perfect "send" power ratio
+        recv_power_ratio_v = 1.0; // the source has perfect "recv" power ratio
+    } else {
+        switch(node.storage(node_battery_level{}))
+        {
+            case HIGH_BATTERY:
+                sleep_ratio_v = 0.0;
+                send_power_ratio_v = 0.90;
+                recv_power_ratio_v = 1.00;
+                new_color = color(GREEN);
+                break;
+            case MEDIUM_BATTERY:
+                sleep_ratio_v = 0.0;
+                send_power_ratio_v = 0.75;
+                recv_power_ratio_v = 0.99;
+                new_color = color(ORANGE);
+                break;
+            case LOW_BATTERY:
+                sleep_ratio_v = 0.25;
+                send_power_ratio_v = 0.25;
+                recv_power_ratio_v = 0.75;
+                new_color = color(RED);
+                break;
+            default:
+                break;
+        }
+    }
+    fcpp::common::get<sleep_ratio>(node.connector_data()) = sleep_ratio_v; 
+    fcpp::common::get<send_power_ratio>(node.connector_data()) = send_power_ratio_v; 
+    fcpp::common::get<recv_power_ratio>(node.connector_data()) = recv_power_ratio_v; 
+    node.storage(node_color{}) = new_color;
 
     auto adder = [](real_t x, real_t y) {
         return x+y;
@@ -214,7 +296,6 @@ MAIN() {
     node.storage(node_alert_counter<tags::classic>{})   = value_sp_classic;
     node.storage(node_alert_counter<tags::oldnbr>{})    = value_sp_mod;
     node.storage(node_rating{})                         = rating;
-    node.storage(sleep_ratio{})                         = fcpp::common::get<sleep_ratio>(node.connector_data());
 
     // update counter of the source
     if (node.storage(fcpp::coordination::tags::node_source{})) {
@@ -286,6 +367,7 @@ using store_t = tuple_store<
     node_parent,                    device_t,
     node_rating_parent,             real_t,
     node_source,                    bool,
+    node_battery_level,             int, // 0=LOW, 1=MEDIUM, 2=HIGH
 
     source_alert_counter<classic>,  real_t,
     source_alert_counter<oldnbr>,   real_t,
@@ -326,14 +408,15 @@ DECLARE_OPTIONS(list,
     store_t,       // the contents of the node storage
     aggregator_t,  // the tags and corresponding aggregators to be logged
     log_functors<
-        avg_alert_per_node<classic>,    functor::div<aggregator::sum<node_alert_counter<classic>>, n<coordination::configurations::node_num>>,
-        avg_alert_per_node<oldnbr>,     functor::div<aggregator::sum<node_alert_counter<oldnbr>>, n<coordination::configurations::node_num>>
+        avg_alert_per_node<classic>,        functor::div<aggregator::sum<node_alert_counter<classic>>, n<coordination::configurations::node_num>>,
+        avg_alert_per_node<oldnbr>,         functor::div<aggregator::sum<node_alert_counter<oldnbr>>, n<coordination::configurations::node_num>>
     >,
     init<
-        x,                  rectangle_d, // initialise position randomly in a rectangle for new nodes
-        send_power_ratio,   distribution::interval_n<times_t, 4, 5, 5>, // greater is better
-        recv_power_ratio,   distribution::interval_n<times_t, 5, 5, 5>, // greater is better
-        sleep_ratio,        distribution::interval_n<times_t, 0, 1, 5> // less is better
+        x,                                  rectangle_d, // initialise position randomly in a rectangle for new nodes
+        node_battery_level,                 distribution::interval_n<times_t, 0, 3>,    // greater is better
+        send_power_ratio,                   distribution::interval_n<times_t, 1, 1>,    // greater is better
+        recv_power_ratio,                   distribution::interval_n<times_t, 1, 1>,    // greater is better
+        sleep_ratio,                        distribution::interval_n<times_t, 0, 1>     // less is better
     >,
     plot_type<plot_t>,
     dimension<dim>, // dimensionality of the space
