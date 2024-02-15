@@ -54,9 +54,9 @@ namespace tags {
     struct classic {};
     //! @brief Oldnbr version of sp_collection algorithm
     struct oldnbr {};
-
-    //! @brief The reliability of the current node.
-    struct node_reliability {};
+    
+    //! @brief The rating of the current node.
+    struct node_rating {};
     //! @brief The alert counter of the current node.
     template <typename>
     struct node_alert_counter {};
@@ -112,7 +112,7 @@ FUN field<int> biConnection(ARGS) { CODE
     });
 }
 
-//! @brief Compute reliability using old and nbr communications with each neighbour.
+//! @brief Compute rating using old and nbr communications with each neighbour.
 FUN field<real_t> oldNbrConnection(ARGS) { CODE
     return oldnbr(CALL, field<real_t>{0.0}, [&](field<real_t> o, field<real_t> n){
         return make_tuple(
@@ -123,44 +123,41 @@ FUN field<real_t> oldNbrConnection(ARGS) { CODE
 }
 
 template <typename node_t, typename P, typename T, typename U, typename G, typename R, typename = common::if_signature<G, T(T,T)>>
-T sp_collection_mod(ARGS, P const& distance, T const& value, U const& null, G&& accumulate, field<R> const& reliability) { CODE
-    return nbr(CALL, (T)null, [&](field<T> x){
-        auto best_neigh_field =  min_hood( CALL, make_tuple(nbr(CALL, distance), -reliability, nbr_uid(CALL)) );
+T sp_collection_mod(ARGS, P const& distance, T const& value, U const& null, G&& accumulate, field<R> const& rating) { CODE
+    tuple<T, R, device_t> result = nbr(CALL, make_tuple(T(null), (R)0, node.uid), [&](field<tuple<T, R, device_t>> x){
+
+        auto best_neigh_field =  min_hood( CALL, make_tuple(nbr(CALL, distance), -rating, nbr_uid(CALL)) );
         R best_neigh_rating_computed = -get<1>(best_neigh_field);
         device_t best_neigh_computed = get<2>(best_neigh_field);
-        tuple<device_t, real_t> rating_tuple = old(CALL, make_tuple(best_neigh_computed, best_neigh_rating_computed), [&](tuple<device_t, real_t> o){
-            device_t old_parent = get<0>(o);
-            real_t old_rating = get<1>(o);
 
-            real_t old_rating_evolved = old_rating*0.8;
+        R rating = get<1>(self(CALL, x));
+        device_t parent = get<2>(self(CALL, x));
+        T folded_value = fold_hood(CALL, accumulate, mux(get<2>(x) == node.uid, get<0>(x), (T)null), value);
 
-            // std::cout << "old_parent:"                          << old_parent  << std::endl;
-            // std::cout << "old_rating:"                          << old_rating  << std::endl;
-            // std::cout << "old_rating_evolved:"                  << old_rating_evolved  << std::endl;
-            // std::cout << "best_neigh_computed:"                 << best_neigh_computed  << std::endl;
-            // std::cout << "best_neigh_rating_computed:"          << best_neigh_rating_computed  << std::endl;
+        real_t rating_evolved = rating*0.8;
 
-            if (best_neigh_computed != old_parent && best_neigh_rating_computed < old_rating_evolved) {
-                return make_tuple(
-                    old_parent,
-                    old_rating_evolved
-                );
-            } else {
-                return make_tuple(
-                        best_neigh_computed,
-                        best_neigh_rating_computed
-                );
-            }
-        });
-
-        device_t parent = get<0>(other(CALL, rating_tuple));
-        device_t rating_parent = get<1>(other(CALL, rating_tuple));
-
-        node.storage(fcpp::coordination::tags::node_parent{}) = parent;
-        node.storage(fcpp::coordination::tags::node_rating_parent{}) = rating_parent;
-        // non serve nbr di parent perchè è già come argomento
-        return fold_hood(CALL, accumulate, mux(nbr(CALL, parent) == node.uid, x, (T)null), value);
+        if (best_neigh_computed != parent && best_neigh_rating_computed < rating_evolved) {
+            return make_tuple(
+                folded_value,
+                rating_evolved,
+                parent
+            );
+        } else {
+            return make_tuple(
+                folded_value,
+                best_neigh_rating_computed,
+                best_neigh_computed
+            );
+        }
     });
+    T computed_value = get<0>(result);
+    R computed_rating = get<1>(result);
+    device_t computed_parent = get<2>(result);
+
+    node.storage(fcpp::coordination::tags::node_parent{}) = computed_parent;
+    node.storage(fcpp::coordination::tags::node_rating_parent{}) = computed_rating;
+
+    return computed_value;
 }
 
 //! @brief Main function.
@@ -189,12 +186,14 @@ MAIN() {
     };
 
     real_t distance = coordination::abf_distance(CALL, source);
-    field<real_t> reliability = oldNbrConnection(CALL); 
+    field<real_t> rating = oldNbrConnection(CALL); 
 
-    real_t value = coordination::sp_collection_mod(CALL, distance, 1.0, 0, adder, reliability);
+    // std::cout << node.uid << std::endl;
+
+    real_t value = coordination::sp_collection_mod(CALL, distance, 1.0, 0, adder, rating);
 
     node.storage(node_alert_counter<tags::oldnbr>{})    = value;
-    node.storage(node_reliability{})                    = reliability;
+    node.storage(node_rating{})                         = rating;
     node.storage(sleep_ratio{})                         = fcpp::common::get<sleep_ratio>(node.connector_data());
 
     // update counter of the source
@@ -212,6 +211,11 @@ FUN_EXPORT main_t = export_list<double,
                                 field<int>, 
                                 field<real_t>, 
                                 tuple<device_t, real_t>,
+                                tuple<real_t, real_t, device_t>,
+                                tuple<real_t, int, device_t>,
+                                field<tuple<double, real_t, device_t>>,
+                                field<tuple<double, int, device_t>>,
+                                tuple<real_t, real_t, device_t>,
                                 sp_collection_t<real_t, real_t>,
                                 abf_distance_t
                                 >;
@@ -257,7 +261,7 @@ using store_t = tuple_store<
 
     node_alert_counter<classic>,    real_t,
     node_alert_counter<oldnbr>,     real_t,
-    node_reliability,               field<real_t>,
+    node_rating,                    field<real_t>,
     node_parent,                    device_t,
     node_rating_parent,             real_t,
     node_source,                    bool,
