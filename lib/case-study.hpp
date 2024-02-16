@@ -16,7 +16,7 @@
 #define MEDIUM_BATTERY              1
 #define HIGH_BATTERY                2
 
-#define INCREASE_BATTERY_PROB       0.05
+#define INCREASE_BATTERY_PROB       0.02
 #define DECREASE_BATTERY_PROB       0.01
 
 #include <string>
@@ -86,9 +86,9 @@ namespace tags {
 namespace configurations {
     #if defined(AP_USE_CASE) && (AP_USE_CASE == AP_USE_CASE_BIG)
         //! @brief Number of people in the area.
-        constexpr int node_num = 100;
+        constexpr int node_num = 200;
         //! @brief The maximum communication range between nodes.
-        constexpr size_t communication_range = 150;
+        constexpr size_t communication_range = 100;
     #elif defined(AP_USE_CASE) && (AP_USE_CASE == AP_USE_CASE_SMALL)
         //! @brief Number of people in the area.  
         constexpr int node_num = 10; 
@@ -242,19 +242,19 @@ MAIN() {
         {
             case HIGH_BATTERY:
                 sleep_ratio_v = 0.0;
-                send_power_ratio_v = 0.90;
+                send_power_ratio_v = 0.60;
                 recv_power_ratio_v = 1.00;
                 new_color = color(GREEN);
                 break;
             case MEDIUM_BATTERY:
                 sleep_ratio_v = 0.0;
-                send_power_ratio_v = 0.75;
-                recv_power_ratio_v = 0.99;
+                send_power_ratio_v = 0.40;
+                recv_power_ratio_v = 0.90;
                 new_color = color(ORANGE);
                 break;
             case LOW_BATTERY:
-                sleep_ratio_v = 0.10;
-                send_power_ratio_v = 0.25;
+                sleep_ratio_v = 0.05;
+                send_power_ratio_v = 0.20;
                 recv_power_ratio_v = 0.75;
                 new_color = color(RED);
                 break;
