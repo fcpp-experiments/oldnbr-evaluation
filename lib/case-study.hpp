@@ -135,10 +135,10 @@ FUN field<real_t> oldNbrConnection(ARGS) { CODE
 }
 
 template <typename node_t, typename P, typename T, typename U, typename G, typename R, typename = common::if_signature<G, T(T,T)>>
-T sp_collection_mod(ARGS, P const& distance, T const& value, U const& null, G&& accumulate, field<R> const& rating) { CODE
+T sp_collection_mod(ARGS, P const& distance, T const& value, U const& null, G&& accumulate, field<R> const& field_rating) { CODE
     tuple<T, R, device_t> result = nbr(CALL, make_tuple(T(null), (R)0, node.uid), [&](field<tuple<T, R, device_t>> x){
 
-        auto best_neigh_field        =  min_hood( CALL, make_tuple(nbr(CALL, distance), -rating, nbr_uid(CALL)) );
+        auto best_neigh_field        =  min_hood( CALL, make_tuple(nbr(CALL, distance), -field_rating, nbr_uid(CALL)) );
         R best_neigh_rating_computed = -get<1>(best_neigh_field);
         device_t best_neigh_computed = get<2>(best_neigh_field);
 
