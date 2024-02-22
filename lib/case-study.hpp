@@ -75,30 +75,36 @@ namespace tags {
     struct avg_alert_per_node{};
     //! @brief Classic version of sp_collection algorithm.
     struct classic {};
-    //! @brief Oldnbr version of sp_collection_mod algorithm.
-    struct oldnbr {};
-    //! @brief BiConnection version of sp_collection_mod algorithm.
+    //! @brief BiConnection version of ssp_collection algorithm.
     struct biconn {};
-    //! @brief UniConnection version of sp_collection_mod algorithm.
+    //! @brief UniConnection version of ssp_collection algorithm.
     struct uniconn {};
+    //! @brief Mixed version of ssp_collection algorithm.
+    struct mixed {};
 }
 
 namespace configurations {
-    #if defined(AP_USE_CASE) && (AP_USE_CASE == AP_USE_CASE_BIG)
+    #if defined(AP_USE_CASE) && (AP_USE_CASE == BIG)
         //! @brief Number of people in the area.
         constexpr int node_num = 100;
         //! @brief The maximum communication range between nodes.
-        constexpr size_t communication_range = 150;
-    #elif defined(AP_USE_CASE) && (AP_USE_CASE == AP_USE_CASE_SMALL)
+        constexpr size_t communication_range = 50;
+        //! @brief The lenght of the side of rectangle area.
+        constexpr size_t area_side = 150;
+    #elif defined(AP_USE_CASE) && (AP_USE_CASE == SMALL)
         //! @brief Number of people in the area.  
         constexpr int node_num = 10; 
         //! @brief The maximum communication range between nodes.
-        constexpr size_t communication_range = 450;
+        constexpr size_t communication_range = 100;
+        //! @brief The lenght of the side of rectangle area.
+        constexpr size_t area_side = 150;
     #else
         //! @brief Number of people in the area.
         constexpr int node_num = 100;
         //! @brief The maximum communication range between nodes.
-        constexpr size_t communication_range = 150;
+        constexpr size_t communication_range = 50;
+        //! @brief The lenght of the side of rectangle area.
+        constexpr size_t area_side = 150;
     #endif
 
     //! @brief Dimensionality of the space.
@@ -125,7 +131,7 @@ FUN field<real_t> biConnection(ARGS) { CODE
 }
 
 //! @brief Compute rating using old and nbr communications with each neighbour.
-FUN field<real_t> oldNbrConnection(ARGS) { CODE
+FUN field<real_t> mixedConnection(ARGS) { CODE
     return oldnbr(CALL, field<real_t>{0.0}, [&](field<real_t> o, field<real_t> n){
         return make_tuple(
             n,
@@ -135,7 +141,7 @@ FUN field<real_t> oldNbrConnection(ARGS) { CODE
 }
 
 template <typename node_t, typename P, typename T, typename U, typename G, typename R, typename = common::if_signature<G, T(T,T)>>
-T sp_collection_mod(ARGS, P const& distance, T const& value, U const& null, G&& accumulate, field<R> const& field_rating) { CODE
+T ssp_collection(ARGS, P const& distance, T const& value, U const& null, G&& accumulate, field<R> const& field_rating, R stale_factor) { CODE
     tuple<T, R, device_t> result = nbr(CALL, make_tuple(T(null), (R)0, node.uid), [&](field<tuple<T, R, device_t>> x){
 
         auto best_neigh_field        =  min_hood( CALL, make_tuple(nbr(CALL, distance), -field_rating, nbr_uid(CALL)) );
@@ -146,7 +152,7 @@ T sp_collection_mod(ARGS, P const& distance, T const& value, U const& null, G&& 
         device_t parent = get<2>(self(CALL, x));
         T folded_value  = fold_hood(CALL, accumulate, mux(get<2>(x) == node.uid, get<0>(x), (T)null), value);
 
-        R rating_evolved = rating*0.7;
+        R rating_evolved = rating*stale_factor;
 
         if (best_neigh_computed != parent && best_neigh_rating_computed < rating_evolved) {
             return make_tuple(
@@ -179,7 +185,7 @@ MAIN() {
     using namespace fcpp::component::tags;
 
     // usage of node storage
-    node.storage(node_size{}) = 10;
+    node.storage(node_size{}) = 3;
     node.storage(node_color{}) = color(BLACK);
     node.storage(node_shape{}) = shape::sphere;
 
@@ -275,28 +281,29 @@ MAIN() {
 
     field<real_t> uniConnRating         = uniConnection(CALL);
     field<real_t> biConnRating          = biConnection(CALL); 
-    field<real_t> oldNbrConnRating      = oldNbrConnection(CALL); 
+    field<real_t> mixedConnRating       = mixedConnection(CALL); 
 
     // std::cout << node.uid << std::endl;
 
     real_t value_sp_classic         = coordination::sp_collection(CALL, distance, 1.0, 0, adder);
 
-    real_t value_sp_mod_uniConn     = coordination::sp_collection_mod(CALL, distance, 1.0, 0, adder, uniConnRating);
-    real_t value_sp_mod_biConn      = coordination::sp_collection_mod(CALL, distance, 1.0, 0, adder, biConnRating);
-    real_t value_sp_mod_oldnbr      = coordination::sp_collection_mod(CALL, distance, 1.0, 0, adder, oldNbrConnRating);
+    real_t stale_factor = 0.7;
+    real_t value_ssp_mod_uniConn     = coordination::ssp_collection(CALL, distance, 1.0, 0, adder, uniConnRating, stale_factor);
+    real_t value_ssp_mod_biConn      = coordination::ssp_collection(CALL, distance, 1.0, 0, adder, biConnRating, stale_factor);
+    real_t value_ssp_mod_mixed       = coordination::ssp_collection(CALL, distance, 1.0, 0, adder, mixedConnRating, stale_factor);
 
     node.storage(node_alert_counter<tags::classic>{})   = value_sp_classic;
-    node.storage(node_alert_counter<tags::uniconn>{})   = value_sp_mod_uniConn;
-    node.storage(node_alert_counter<tags::biconn>{})    = value_sp_mod_biConn;
-    node.storage(node_alert_counter<tags::oldnbr>{})    = value_sp_mod_oldnbr;
-    node.storage(node_rating{})                         = oldNbrConnRating;
+    node.storage(node_alert_counter<tags::uniconn>{})   = value_ssp_mod_uniConn;
+    node.storage(node_alert_counter<tags::biconn>{})    = value_ssp_mod_biConn;
+    node.storage(node_alert_counter<tags::mixed>{})     = value_ssp_mod_mixed;
+    node.storage(node_rating{})                         = mixedConnRating;
 
     // update counter of the source
     if (node.storage(fcpp::coordination::tags::node_source{})) {
         node.storage(fcpp::coordination::tags::source_alert_counter<tags::classic>{})   = value_sp_classic;
-        node.storage(fcpp::coordination::tags::source_alert_counter<tags::uniconn>{})   = value_sp_mod_uniConn;
-        node.storage(fcpp::coordination::tags::source_alert_counter<tags::biconn>{})    = value_sp_mod_biConn;
-        node.storage(fcpp::coordination::tags::source_alert_counter<tags::oldnbr>{})    = value_sp_mod_oldnbr;
+        node.storage(fcpp::coordination::tags::source_alert_counter<tags::uniconn>{})   = value_ssp_mod_uniConn;
+        node.storage(fcpp::coordination::tags::source_alert_counter<tags::biconn>{})    = value_ssp_mod_biConn;
+        node.storage(fcpp::coordination::tags::source_alert_counter<tags::mixed>{})     = value_ssp_mod_mixed;
     }
 
     std::cout << std::endl;
@@ -342,8 +349,8 @@ using round_s = sequence::periodic<
 using log_s = sequence::periodic_n<1, 0, 1, coordination::configurations::end>;
 //! @brief The sequence of node generation events (node_num devices all generated at time 0).
 using spawn_s = sequence::multiple_n<node_num, 0>;
-//! @brief The distribution of initial node positions (random in a 500x500 square).
-using rectangle_d = distribution::rect_n<1, 0, 0, 500, 500>;
+//! @brief The distribution of initial node positions (random in a [area_side x area_side] square).
+using rectangle_d = distribution::rect_n<1, 0, 0, coordination::configurations::area_side, coordination::configurations::area_side>;
 //! @brief Shorthand for an constant input distribution.
 template <typename T, typename R = double>
 using i = distribution::constant_i<R, T>;
@@ -360,7 +367,7 @@ using store_t = tuple_store<
     node_alert_counter<classic>,    real_t,
     node_alert_counter<uniconn>,    real_t,
     node_alert_counter<biconn>,     real_t,
-    node_alert_counter<oldnbr>,     real_t,
+    node_alert_counter<mixed>,      real_t,
     node_rating,                    field<real_t>,
     node_parent,                    device_t,
     node_rating_parent,             real_t,
@@ -370,7 +377,7 @@ using store_t = tuple_store<
     source_alert_counter<classic>,  real_t,
     source_alert_counter<uniconn>,  real_t,
     source_alert_counter<biconn>,   real_t,
-    source_alert_counter<oldnbr>,   real_t,
+    source_alert_counter<mixed>,    real_t,
     
     sleep_ratio,                    real_t
 >;
@@ -380,11 +387,11 @@ using aggregator_t = aggregators<
     node_alert_counter<classic>,        aggregator::sum<real_t>,
     node_alert_counter<uniconn>,        aggregator::sum<real_t>,
     node_alert_counter<biconn>,         aggregator::sum<real_t>,
-    node_alert_counter<oldnbr>,         aggregator::sum<real_t>,
+    node_alert_counter<mixed>,          aggregator::sum<real_t>,
     source_alert_counter<classic>,      aggregator::sum<real_t>,
     source_alert_counter<uniconn>,      aggregator::sum<real_t>,
     source_alert_counter<biconn>,       aggregator::sum<real_t>,
-    source_alert_counter<oldnbr>,       aggregator::sum<real_t>
+    source_alert_counter<mixed>,        aggregator::sum<real_t>
 >;
 
 template <typename T> using sum_source_alert_counter = aggregator::sum<source_alert_counter<T>>;
@@ -392,8 +399,8 @@ template <typename T> using sum_source_alert_counter = aggregator::sum<source_al
 template <template<class> typename T, typename... Ts>
 using lines_t = plot::join<plot::value<T<Ts>>...>;
 
-using avg_alert_per_node_t = plot::split<plot::time, lines_t<avg_alert_per_node, classic, uniconn, biconn, oldnbr>>;
-using sum_source_alert_counter_t = plot::split<plot::time, lines_t<sum_source_alert_counter, classic, uniconn, biconn, oldnbr>>;
+using avg_alert_per_node_t = plot::split<plot::time, lines_t<avg_alert_per_node, classic, uniconn, biconn, mixed>>;
+using sum_source_alert_counter_t = plot::split<plot::time, lines_t<sum_source_alert_counter, classic, uniconn, biconn, mixed>>;
 // using plot_t = plot::join<sum_source_alert_counter_t, avg_alert_per_node_t>;
 using plot_t = plot::join<sum_source_alert_counter_t>;
 
@@ -416,7 +423,7 @@ DECLARE_OPTIONS(list,
         avg_alert_per_node<classic>,        functor::div<aggregator::sum<node_alert_counter<classic>>, n<coordination::configurations::node_num>>,
         avg_alert_per_node<uniconn>,        functor::div<aggregator::sum<node_alert_counter<uniconn>>, n<coordination::configurations::node_num>>,
         avg_alert_per_node<biconn>,         functor::div<aggregator::sum<node_alert_counter<biconn>>, n<coordination::configurations::node_num>>,
-        avg_alert_per_node<oldnbr>,         functor::div<aggregator::sum<node_alert_counter<oldnbr>>, n<coordination::configurations::node_num>>
+        avg_alert_per_node<mixed>,          functor::div<aggregator::sum<node_alert_counter<mixed>>, n<coordination::configurations::node_num>>
     >,
     init<
         x,                                  rectangle_d, // initialise position randomly in a rectangle for new nodes
