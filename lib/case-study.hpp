@@ -141,7 +141,7 @@ FUN field<real_t> mixedConnection(ARGS) { CODE
 }
 
 template <typename node_t, typename P, typename T, typename U, typename G, typename R, typename = common::if_signature<G, T(T,T)>>
-T ssp_collection(ARGS, P const& distance, T const& value, U const& null, G&& accumulate, field<R> const& field_rating, R stale_factor) { CODE
+T ssp_collection(ARGS, P const& distance, T const& value, U const& null, G&& accumulate, field<R> const& field_rating, R const& stale_factor) { CODE
     tuple<T, R, device_t> result = nbr(CALL, make_tuple(T(null), (R)0, node.uid), [&](field<tuple<T, R, device_t>> x){
 
         auto best_neigh_field        =  min_hood( CALL, make_tuple(nbr(CALL, distance), -field_rating, nbr_uid(CALL)) );
@@ -287,7 +287,7 @@ MAIN() {
 
     real_t value_sp_classic         = coordination::sp_collection(CALL, distance, 1.0, 0, adder);
 
-    real_t stale_factor = 0.7;
+    const real_t stale_factor = 0.7;
     real_t value_ssp_mod_uniConn     = coordination::ssp_collection(CALL, distance, 1.0, 0, adder, uniConnRating, stale_factor);
     real_t value_ssp_mod_biConn      = coordination::ssp_collection(CALL, distance, 1.0, 0, adder, biConnRating, stale_factor);
     real_t value_ssp_mod_mixed       = coordination::ssp_collection(CALL, distance, 1.0, 0, adder, mixedConnRating, stale_factor);
