@@ -1,6 +1,7 @@
-# FCPP oldnbr evaluation case study
+# FCPP oldnbr case study
 
-Quick-start aggregate computing `oldnbr-evaluation` case study submitted for COORD2024 event. All commands below are assumed to be issued from the cloned git repository folder. For any issues, please contact [Giorgio Audrito](mailto:giorgio.audrito@unito.it).
+Implementation in FCPP of the `oldnbr-evaluation` case study presented in the paper *An Enhanced Exchange Operator for XC*, submitted to the COORDINATION 2024 event.
+All commands below are assumed to be issued from the cloned git repository folder. For any issues, please contact [Giorgio Audrito](mailto:giorgio.audrito@unito.it).
 
 ## References
 
@@ -69,12 +70,23 @@ If you use a VM with a graphical interface, refer to the section for the operati
 
 ## Execution
 
-In order to execute the runner file, type the following command in a terminal:
+In order to run the case study, type the following command in a terminal:
 ```
-> ./make.sh gui run -O runner
+./make.sh gui run -O [options] <target>
 ```
 On newer Mac M1 computers, the `-O` argument may induce compilation errors: in that case, use the `-O3` argument instead.
-Running the above command, you should see output about building the executables then the graphical simulation should pop up while the console will show the most recent `stdout` and `stderr` outputs of the application, together with resource usage statistics (both on RAM and CPU).  During the execution, log files will be generated in the `output/` repository sub-folder. If a batch of multiple simulations is launched (which is not the case for the `runner` target), individual simulation results will be logged in the `output/raw/` subdirectory, with the overall resume in the `output/` directory.
+
+The `target` can either be:
+- `graphic`, in order to run a single simulation with the graphical user interface (GUI), or
+- `batch`, in order to execute a batch of 1000 simulations without GUI.
+
+If you also provide `options`, they will be passed to the C++ compiler. Through options you can change the simulation scenario between two usecases:
+- *SMALL* (10 nodes in a rectangle area of 150m by side);
+- *BIG* (**default**, 100 nodes in a rectangle area of 150m by side). 
+
+In order to launch the *SMALL* usecase, add the option `-DAP_USE_CASE=SMALL`.
+
+Running the above command, you should first see output about building the executables. Then, the graphical simulation should pop up (if using the `graphic` target) while the console will show the most recent `stdout` and `stderr` outputs of the application, together with resource usage statistics (both on RAM and CPU).  During the execution, log files containing the standard input and output will be saved in the `output/` repository sub-folder. For the `batch` target, individual simulation results will be logged in the `output/raw/` subdirectory, with the overall resume in the `output/` directory. After the simulation end, PDF plots will be generated in the `plot/` repository sub-folder.
 
 ### Graphical User Interface
 
@@ -96,43 +108,20 @@ Executing a graphical simulation will open a window displaying the simulation sc
 
 Hovering on a node will also display its UID in the top-left corner.
 
-# Simulations
+### Case Study Summary
 
-## Runs
-Runs a single test simulation with GUI for the scenario chosen.   
-There are two usecases presented: 
-- *SMALL* (10 nodes in a rectangle area of 150m by side);
-- *BIG* (default, 100 nodes in a rectangle area of 150m by side). 
+Our goal is to count the number of the battery-powered IoT devices in the network in a scenario
+with unstable connections. To achieve this, one of the node will be selected as the
+source node where the total number of nodes will be computed.
 
-To choose, use `AP_USE_CASE` option, like this:
-```
-./make.sh gui run -DAP_USE_CASE=BIG runner 
-```
+**TODO: I DON'T UNDERSTAND THE MEANING AND PURPOSE OF THE FOLLOWING TEXT**
 
-## Plot
-Use this command to draw a single simulation into a graph:
-```bash
-./make.sh gui run -DAP_USE_CASE=BIG runner
-```
-for example to use "BIG" use case
+Parameters:
 
-or use batch mode to use data by an average of 1000 simulations:
-```bash
-./make.sh gui run -DAP_USE_CASE=BIG batch
-```
-The resulting PDF plots will be produced in the `plot` directory.
-
-### Parameters 
 - `communication_range`: distance between two nodes that allows their communication
 - `battery profile` (HIGH, MEDIUM, LOW): battery setting that affects communication range
 - `tvar`: variance of the round durations, as a percentage of the avg
 
-### Metrics
+Metrics:
+
 - `sacount` (sum of nodes): sum of nodes computed by source node
-
-
-
-## Case Study
-Our goal is to count the number of the battery-powered IoT devices in the network in a scenario
-with unstable connections. To achieve this, one of the node will be selected as the
-source node where the total number of nodes will be computed.
