@@ -2,8 +2,8 @@
 
 /**
  * @file case-study.hpp
- * @brief Case study evaluate oldnbr operator.
- * 
+ * @brief Case study evaluating the oldnbr operator (implementation of the enhanced exchange communication primitive).
+ *
  */
 
 #ifndef CASE_STUDY_OLDNBR_H_
@@ -19,15 +19,16 @@
 #define INCREASE_BATTERY_PROB       0.05
 #define DECREASE_BATTERY_PROB       0.01
 
-#include <string>
-#include <ctime>
 #include <cmath>
-#include <iostream>
-#include <stdexcept>
-#include <stdio.h>
+#include <cstdio>
 #include <cstring>
-#include <vector>
+#include <ctime>
+
+#include <iostream>
 #include <sstream>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
 #include "lib/fcpp.hpp"
 
@@ -35,12 +36,6 @@
  * @brief Namespace containing all the objects in the FCPP library.
  */
 namespace fcpp {
-
-//! @brief Dummy ordering between positions (allows positions to be used as secondary keys in ordered tuples).
-template <size_t n>
-bool operator<(vec<n> const&, vec<n> const&) {
-    return false;
-}
 
 //! @brief Namespace containing the libraries of coordination routines.
 namespace coordination {
@@ -79,33 +74,32 @@ namespace tags {
     struct biconn {};
     //! @brief UniConnection version of ssp_collection algorithm.
     struct uniconn {};
-    //! @brief Mixed version of ssp_collection algorithm.
+    //! @brief MixedConnection version of ssp_collection algorithm.
     struct mixed {};
 }
 
 namespace configurations {
-    #if defined(AP_USE_CASE) && (AP_USE_CASE == BIG)
-        //! @brief Number of people in the area.
-        constexpr int node_num = 100;
-        //! @brief The maximum communication range between nodes.
-        constexpr size_t communication_range = 50;
-        //! @brief The lenght of the side of rectangle area.
-        constexpr size_t area_side = 150;
-    #elif defined(AP_USE_CASE) && (AP_USE_CASE == SMALL)
-        //! @brief Number of people in the area.  
-        constexpr int node_num = 10; 
-        //! @brief The maximum communication range between nodes.
-        constexpr size_t communication_range = 100;
-        //! @brief The lenght of the side of rectangle area.
-        constexpr size_t area_side = 150;
-    #else
-        //! @brief Number of people in the area.
-        constexpr int node_num = 100;
-        //! @brief The maximum communication range between nodes.
-        constexpr size_t communication_range = 50;
-        //! @brief The lenght of the side of rectangle area.
-        constexpr size_t area_side = 150;
-    #endif
+#ifndef AP_USE_CASE
+#define AP_USE_CASE BIG
+#endif
+
+#if AP_USE_CASE == BIG
+    //! @brief Number of people in the area.
+    constexpr int node_num = 100;
+    //! @brief The maximum communication range between nodes.
+    constexpr size_t communication_range = 50;
+    //! @brief The lenght of the side of rectangle area.
+    constexpr size_t area_side = 150;
+#elif AP_USE_CASE == SMALL
+    //! @brief Number of people in the area.
+    constexpr int node_num = 10;
+    //! @brief The maximum communication range between nodes.
+    constexpr size_t communication_range = 100;
+    //! @brief The lenght of the side of rectangle area.
+    constexpr size_t area_side = 150;
+#else
+    static_assert(false, "provided use case is not recognized");
+#endif
 
     //! @brief Dimensionality of the space.
     constexpr size_t dim = 2;
@@ -117,21 +111,21 @@ namespace configurations {
 // [AGGREGATE PROGRAM]
 
 //! @brief Counts the number of messages received by each neighbour.
-FUN field<real_t> uniConnection(ARGS) { CODE
+FUN field<real_t> uni_connection(ARGS) { CODE
     return old(CALL, field<real_t>{0.0}, [&](field<real_t> o){
         return o + mod_other(CALL, 1.0, 0.0);
     });
 }
 
 //! @brief Counts the number of bidirectional communications with each neighbour.
-FUN field<real_t> biConnection(ARGS) { CODE
+FUN field<real_t> bi_connection(ARGS) { CODE
     return nbr(CALL, field<real_t>{0.0}, [&](field<real_t> n){
         return n + mod_other(CALL, 1.0, 0.0);
     });
 }
 
 //! @brief Compute rating using old and nbr communications with each neighbour.
-FUN field<real_t> mixedConnection(ARGS) { CODE
+FUN field<real_t> mixed_connection(ARGS) { CODE
     return oldnbr(CALL, field<real_t>{0.0}, [&](field<real_t> o, field<real_t> n){
         return make_tuple(
             n,
@@ -140,7 +134,11 @@ FUN field<real_t> mixedConnection(ARGS) { CODE
     });
 }
 
-template <typename node_t, typename P, typename T, typename U, typename G, typename R, typename = common::if_signature<G, T(T,T)>>
+//! @brief Export types used by the *_connection functions.
+FUN_EXPORT any_connection_t = export_list<field<real_t>>;
+
+//! @brief Data collection with the stabilized single-path strategy.
+GEN(P, T, U, G, R, BOUND(G, T(T,T)))
 T ssp_collection(ARGS, P const& distance, T const& value, U const& null, G&& accumulate, field<R> const& field_rating, R const& stale_factor) { CODE
     tuple<T, R, device_t> result = nbr(CALL, make_tuple(T(null), (R)0, node.uid), [&](field<tuple<T, R, device_t>> x){
 
@@ -177,6 +175,8 @@ T ssp_collection(ARGS, P const& distance, T const& value, U const& null, G&& acc
 
     return computed_value;
 }
+//! @brief Export types used by the ssp_collection function.
+GEN_EXPORT(P, T, R) ssp_collection_t = export_list<tuple<T, R, device_t>, P>;
 
 //! @brief Main function.
 MAIN() {
@@ -189,7 +189,6 @@ MAIN() {
     node.storage(node_color{}) = color(BLACK);
     node.storage(node_shape{}) = shape::sphere;
 
-    /*****************/
     bool source = node.uid == 0; // source is node 0
     node.storage(node_source{}) = source;
 
@@ -279,11 +278,9 @@ MAIN() {
 
     real_t distance = coordination::abf_distance(CALL, source);
 
-    field<real_t> uniConnRating         = uniConnection(CALL);
-    field<real_t> biConnRating          = biConnection(CALL); 
-    field<real_t> mixedConnRating       = mixedConnection(CALL); 
-
-    // std::cout << node.uid << std::endl;
+    field<real_t> uniConnRating         = uni_connection(CALL);
+    field<real_t> biConnRating          = bi_connection(CALL); 
+    field<real_t> mixedConnRating       = mixed_connection(CALL); 
 
     real_t value_sp_classic         = coordination::sp_collection(CALL, distance, 1.0, 0, adder);
 
@@ -305,25 +302,9 @@ MAIN() {
         node.storage(fcpp::coordination::tags::source_alert_counter<tags::biconn>{})    = value_ssp_mod_biConn;
         node.storage(fcpp::coordination::tags::source_alert_counter<tags::mixed>{})     = value_ssp_mod_mixed;
     }
-
-    std::cout << std::endl;
-
-    /*****************/
 }
 //! @brief Export types used by the main function (update it when expanding the program).
-FUN_EXPORT main_t = export_list<double, 
-                                int,    
-                                field<int>, 
-                                field<real_t>, 
-                                tuple<device_t, real_t>,
-                                tuple<real_t, real_t, device_t>,
-                                tuple<real_t, int, device_t>,
-                                field<tuple<double, real_t, device_t>>,
-                                field<tuple<double, int, device_t>>,
-                                tuple<real_t, real_t, device_t>,
-                                sp_collection_t<real_t, real_t>,
-                                abf_distance_t
-                                >;
+FUN_EXPORT main_t = export_list<any_connection_t, ssp_collection_t<real_t, real_t, real_t>, sp_collection_t<real_t, real_t>, abf_distance_t>;
 
 } // namespace coordination
 
@@ -394,15 +375,17 @@ using aggregator_t = aggregators<
     source_alert_counter<mixed>,        aggregator::sum<real_t>
 >;
 
+//! @brief Tag in the aggregation tuple for a source alert counter.
 template <typename T> using sum_source_alert_counter = aggregator::sum<source_alert_counter<T>>;
-
+//! @brief Helper template for defining a set of lines that are instantiation of a given template.
 template <template<class> typename T, typename... Ts>
 using lines_t = plot::join<plot::value<T<Ts>>...>;
-
+//! @brief Plot of the average of the partial collection result on each node over time.
 using avg_alert_per_node_t = plot::split<plot::time, lines_t<avg_alert_per_node, classic, uniconn, biconn, mixed>>;
+//! @brief Plot of the total collection result over time.
 using sum_source_alert_counter_t = plot::split<plot::time, lines_t<sum_source_alert_counter, classic, uniconn, biconn, mixed>>;
-// using plot_t = plot::join<sum_source_alert_counter_t, avg_alert_per_node_t>;
-using plot_t = plot::join<sum_source_alert_counter_t>;
+//! @brief Overall plot page.
+using plot_t = plot::join<sum_source_alert_counter_t, avg_alert_per_node_t>;
 
 //! @brief Connection predicate (supports power and sleep ratio, 50% loss at 70% of communication range)
 using connect_t = connect::radial<70, connect::powered<coordination::configurations::communication_range, 1, dim>>;
