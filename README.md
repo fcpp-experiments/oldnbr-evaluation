@@ -114,14 +114,12 @@ Our goal is to count the number of the battery-powered IoT devices in the networ
 with unstable connections. To achieve this, one of the node will be selected as the
 source node where the total number of nodes will be computed.
 
-**TODO: I DON'T UNDERSTAND THE MEANING AND PURPOSE OF THE FOLLOWING TEXT**
+The software uses a specific configuration of some parameters, that can be changed, to simulate the scenario:
+- `number of nodes`: number of nodes spawned in the rectangle area;
+- `communication_range`: distance between two nodes that allows their communication;
+- `battery profile` (HIGH, MEDIUM, LOW): battery setting that affects communication range and `sleep_ratio`.
 
-Parameters:
-
-- `communication_range`: distance between two nodes that allows their communication
-- `battery profile` (HIGH, MEDIUM, LOW): battery setting that affects communication range
-- `tvar`: variance of the round durations, as a percentage of the avg
-
-Metrics:
-
-- `sacount` (sum of nodes): sum of nodes computed by source node
+The metrics used in the plots to benchmark the algorithms, are:
+- `sacount`: sum of nodes computed by source node in a specific round;
+- `aapnod`: average of nodes computed by each node in a specific round;
+- `time`: number of round passed. At the moment, a round will take 1 second.
