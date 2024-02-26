@@ -413,7 +413,7 @@ DECLARE_OPTIONS(list,
     synchronised<false>, // optimise for asynchronous networks
     program<coordination::main>,   // program to be run (refers to MAIN above)
     exports<coordination::main_t>, // export type list (types used in messages)
-    retain<metric::retain<5,1>>,   // messages are kept for 2 seconds before expiring
+    retain<metric::retain<5,1>>,   // messages are kept for 5 seconds before expiring
     round_schedule<round_s>, // the sequence generator for round events on nodes
     log_schedule<log_s>,     // the sequence generator for log events on the network
     spawn_schedule<spawn_s>, // the sequence generator of node creation events on the network
