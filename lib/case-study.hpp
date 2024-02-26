@@ -88,14 +88,14 @@ namespace configurations {
     constexpr int node_num = 100;
     //! @brief The maximum communication range between nodes.
     constexpr size_t communication_range = 50;
-    //! @brief The lenght of the side of rectangle area.
+    //! @brief The length of the side of rectangle area.
     constexpr size_t area_side = 150;
 #elif AP_USE_CASE == SMALL
     //! @brief Number of people in the area.
     constexpr int node_num = 10;
     //! @brief The maximum communication range between nodes.
     constexpr size_t communication_range = 100;
-    //! @brief The lenght of the side of rectangle area.
+    //! @brief The length of the side of rectangle area.
     constexpr size_t area_side = 150;
 #else
     static_assert(false, "provided use case is not recognized");

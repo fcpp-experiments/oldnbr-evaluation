@@ -70,6 +70,10 @@ If you use a VM with a graphical interface, refer to the section for the operati
 
 ## Execution
 
+The goal of this case study is to count the number of the battery-powered IoT devices in the network,
+in a scenario with unstable connections. Among the nodes, a single *gateway* node is connected to electric
+power, hence it is selected as the source node where the total number of nodes will be computed.
+
 In order to run the case study, type the following command in a terminal:
 ```
 ./make.sh gui run -O [options] <target>
@@ -85,8 +89,19 @@ If you also provide `options`, they will be passed to the C++ compiler. Through 
 - *BIG* (**default**, 100 nodes in a rectangle area of 150m by side). 
 
 In order to launch the *SMALL* usecase, add the option `-DAP_USE_CASE=SMALL`.
+The configuration can also be easily changed by editing file `lib/case-study.hpp` (rows 88-99),
+in order to try out different settings. The configuration parameters involved are:
+- `node_num`: number of nodes spawned in the rectangle area;
+- `communication_range`: distance between two nodes that allows their communication;
+- `area_side`: dimension of the area where devices are deployed.
 
-Running the above command, you should first see output about building the executables. Then, the graphical simulation should pop up (if using the `graphic` target) while the console will show the most recent `stdout` and `stderr` outputs of the application, together with resource usage statistics (both on RAM and CPU).  During the execution, log files containing the standard input and output will be saved in the `output/` repository sub-folder. For the `batch` target, individual simulation results will be logged in the `output/raw/` subdirectory, with the overall resume in the `output/` directory. After the simulation end, PDF plots will be generated in the `plot/` repository sub-folder.
+Running the `make.sh` command above, you should first see output about building the executables. Then, the graphical simulation should pop up (if using the `graphic` target) while the console will show the most recent `stdout` and `stderr` outputs of the application, together with resource usage statistics (both on RAM and CPU).  During the execution, log files containing the standard input and output will be saved in the `output/` repository sub-folder. For the `batch` target, individual simulation results will be logged in the `output/raw/` subdirectory, with the overall resume in the `output/` directory.
+
+After the simulation end, PDF plots will be generated in the `plot/` repository sub-folder.
+The metrics used in the plots to benchmark the algorithms, are:
+- `sacount`: total number of nodes as computed by source node;
+- `aapnod`: average of the partial collection result on each node;
+- `time`: simulated time passed (rounds happen every 1 *sec* on average, with a 10% variance).
 
 ### Graphical User Interface
 
@@ -107,19 +122,3 @@ Executing a graphical simulation will open a window displaying the simulation sc
 - any other key will show/hide a legenda displaying this list
 
 Hovering on a node will also display its UID in the top-left corner.
-
-### Case Study Summary
-
-Our goal is to count the number of the battery-powered IoT devices in the network in a scenario
-with unstable connections. To achieve this, one of the node will be selected as the
-source node where the total number of nodes will be computed.
-
-The software uses a specific configuration of some parameters, that can be changed, to simulate the scenario:
-- `number of nodes`: number of nodes spawned in the rectangle area;
-- `communication_range`: distance between two nodes that allows their communication;
-- `battery profile` (HIGH, MEDIUM, LOW): battery setting that affects communication range and `sleep_ratio`.
-
-The metrics used in the plots to benchmark the algorithms, are:
-- `sacount`: sum of nodes computed by source node in a specific round;
-- `aapnod`: average of nodes computed by each node in a specific round;
-- `time`: number of round passed. At the moment, a round will take 1 second.
