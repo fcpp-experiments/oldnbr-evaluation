@@ -35,6 +35,6 @@ int main() {
     }
 
     std::cout << "*/\n";
-    std::cout << plot::file("runner", p.build());
+    std::cout << plot::file("graphic", p.build());
     return 0;
 }
