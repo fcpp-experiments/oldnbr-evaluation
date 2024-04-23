@@ -16,7 +16,7 @@
 #define MEDIUM_BATTERY              1
 #define HIGH_BATTERY                2
 
-#define INCREASE_BATTERY_PROB       0.05
+#define INCREASE_BATTERY_PROB       0.01
 #define DECREASE_BATTERY_PROB       0.01
 
 #include <cmath>
@@ -76,6 +76,9 @@ namespace tags {
     struct uniconn {};
     //! @brief MixedConnection version of ssp_collection algorithm.
     struct mixed {};
+
+    //! @brief Number of working nodes: HIGH+MEDIUM profiles
+    struct working_node {};
 }
 
 namespace configurations {
@@ -302,6 +305,13 @@ MAIN() {
         node.storage(fcpp::coordination::tags::source_alert_counter<tags::biconn>{})    = value_ssp_mod_biConn;
         node.storage(fcpp::coordination::tags::source_alert_counter<tags::mixed>{})     = value_ssp_mod_mixed;
     }
+
+    // update counter of working nodes
+    if (node.storage(node_battery_level{}) == HIGH_BATTERY || node.storage(node_battery_level{}) == MEDIUM_BATTERY) {
+        node.storage(fcpp::coordination::tags::source_alert_counter<tags::working_node>{}) = 1;
+    } else {
+        node.storage(fcpp::coordination::tags::source_alert_counter<tags::working_node>{}) = 0;
+    }
 }
 //! @brief Export types used by the main function (update it when expanding the program).
 FUN_EXPORT main_t = export_list<any_connection_t, ssp_collection_t<real_t, real_t, real_t>, sp_collection_t<real_t, real_t>, abf_distance_t>;
@@ -341,26 +351,30 @@ using n = distribution::constant_n<double, num, den>;
 
 //! @brief The contents of the node storage as tags and associated types.
 using store_t = tuple_store<
-    node_color,                     color,
-    node_size,                      double,
-    node_shape,                     shape,
+    node_color,                         color,
+    node_size,                          double,
+    node_shape,                         shape,
 
-    node_alert_counter<classic>,    real_t,
-    node_alert_counter<uniconn>,    real_t,
-    node_alert_counter<biconn>,     real_t,
-    node_alert_counter<mixed>,      real_t,
-    node_rating,                    field<real_t>,
-    node_parent,                    device_t,
-    node_rating_parent,             real_t,
-    node_source,                    bool,
-    node_battery_level,             int, // 0=LOW, 1=MEDIUM, 2=HIGH
-
-    source_alert_counter<classic>,  real_t,
-    source_alert_counter<uniconn>,  real_t,
-    source_alert_counter<biconn>,   real_t,
-    source_alert_counter<mixed>,    real_t,
+    node_alert_counter<classic>,        real_t,
+    node_alert_counter<uniconn>,        real_t,
+    node_alert_counter<biconn>,         real_t,
+    node_alert_counter<mixed>,          real_t,
     
-    sleep_ratio,                    real_t
+    node_rating,                        field<real_t>,
+    node_parent,                        device_t,
+    node_rating_parent,                 real_t,
+    node_source,                        bool,
+    node_battery_level,                 int, // 0=LOW, 1=MEDIUM, 2=HIGH
+    working_node,                       int, // 1=HIGH+MEDIUM, 0=LOW
+
+    source_alert_counter<classic>,      real_t,
+    source_alert_counter<uniconn>,      real_t,
+    source_alert_counter<biconn>,       real_t,
+    source_alert_counter<mixed>,        real_t,
+
+    source_alert_counter<working_node>, real_t,
+
+    sleep_ratio,                        real_t
 >;
 //! @brief The tags and corresponding aggregators to be logged (change as needed).
 using aggregator_t = aggregators<
@@ -369,10 +383,13 @@ using aggregator_t = aggregators<
     node_alert_counter<uniconn>,        aggregator::sum<real_t>,
     node_alert_counter<biconn>,         aggregator::sum<real_t>,
     node_alert_counter<mixed>,          aggregator::sum<real_t>,
+
     source_alert_counter<classic>,      aggregator::sum<real_t>,
     source_alert_counter<uniconn>,      aggregator::sum<real_t>,
     source_alert_counter<biconn>,       aggregator::sum<real_t>,
-    source_alert_counter<mixed>,        aggregator::sum<real_t>
+    source_alert_counter<mixed>,        aggregator::sum<real_t>,
+
+    source_alert_counter<working_node>, aggregator::sum<real_t>
 >;
 
 //! @brief Tag in the aggregation tuple for a source alert counter.
@@ -383,7 +400,7 @@ using lines_t = plot::join<plot::value<T<Ts>>...>;
 //! @brief Plot of the average of the partial collection result on each node over time.
 using avg_alert_per_node_t = plot::split<plot::time, lines_t<avg_alert_per_node, classic, uniconn, biconn, mixed>>;
 //! @brief Plot of the total collection result over time.
-using sum_source_alert_counter_t = plot::split<plot::time, lines_t<sum_source_alert_counter, classic, uniconn, biconn, mixed>>;
+using sum_source_alert_counter_t = plot::split<plot::time, lines_t<sum_source_alert_counter, classic, uniconn, biconn, mixed, working_node>>;
 //! @brief Overall plot page.
 using plot_t = plot::join<sum_source_alert_counter_t, avg_alert_per_node_t>;
 
